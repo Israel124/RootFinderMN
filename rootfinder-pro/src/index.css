@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #10b981;
+  --color-primary-foreground: #050807;
+  
+  --color-background: #050807;
+  --color-foreground: #ecfdf5;
+  
+  --color-muted: #131c19;
+  --color-muted-foreground: #94a3b8;
+  
+  --color-accent: #10b981;
+  --color-accent-foreground: #050807;
+  
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ecfdf5;
+  
+  --color-border: #1e292b;
+  --color-input: #1e292b;
+  --color-ring: #10b981;
+
+  --color-card: #0a0f0d;
+  --color-card-foreground: #ecfdf5;
+
+  --color-popover: #0a0f0d;
+  --color-popover-foreground: #ecfdf5;
+
+  --radius-lg: 1rem;
+  --radius-md: 0.75rem;
+  --radius-sm: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.09) 0px, transparent 45%),
+      radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.08) 0px, transparent 40%),
+      linear-gradient(180deg, rgba(7, 12, 10, 0.98) 0%, rgba(5, 8, 7, 1) 100%);
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: radial-gradient(circle at center, black 45%, transparent 90%);
+    z-index: -1;
+  }
+}
+
+.graph-tooltip {
+  @apply absolute pointer-events-none bg-black/80 text-foreground text-[10px] px-3 py-2 rounded-xl shadow-2xl backdrop-blur-xl border border-primary/20 z-50 min-w-[120px];
+}
