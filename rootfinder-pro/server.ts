@@ -1,5 +1,4 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import pg from "pg";
@@ -65,8 +64,7 @@ async function initDb() {
 
 async function startServer() {
   const app = express();
-  const parsedPort = Number(process.env.PORT);
-  const PORT = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : 4000;
+  const PORT = Number(process.env.PORT) || 4000;
 
   app.use(express.json());
 
@@ -202,6 +200,7 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
