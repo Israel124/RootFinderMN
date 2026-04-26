@@ -1,5 +1,12 @@
 import { MathEvaluator } from './mathEvaluator';
-import { IterationData, CalculationResult, MethodType, FixedPointCandidate } from '../types';
+import {
+  IterationData,
+  CalculationResult,
+  MethodType,
+  FixedPointCandidate,
+  SystemCalculationResult,
+  SystemIterationData,
+} from '../types';
 
 export class NumericalMethods {
   private static readonly FIXED_POINT_TOLERANCE = 0.98;
@@ -416,6 +423,108 @@ export class NumericalMethods {
     }
 
     return this.successResult('fixed-point', f, xi, iterations, converged, params, g);
+  }
+
+  static newtonRaphsonSystem2x2(
+    f1: string,
+    f2: string,
+    x0: number,
+    y0: number,
+    tol: number,
+    maxIter: number
+  ): SystemCalculationResult {
+    const iterations: SystemIterationData[] = [];
+    let x = x0;
+    let y = y0;
+    let converged = false;
+    const params = { f1, f2, x0, y0, tol, maxIter };
+
+    for (let i = 1; i <= maxIter; i++) {
+      const scope = { x, y };
+      const fx1 = MathEvaluator.evaluateWithScope(f1, scope);
+      const fx2 = MathEvaluator.evaluateWithScope(f2, scope);
+
+      const j11 = MathEvaluator.partialDerivative(f1, 'x', scope);
+      const j12 = MathEvaluator.partialDerivative(f1, 'y', scope);
+      const j21 = MathEvaluator.partialDerivative(f2, 'x', scope);
+      const j22 = MathEvaluator.partialDerivative(f2, 'y', scope);
+
+      const det = j11 * j22 - j12 * j21;
+      if (Math.abs(det) < 1e-12) {
+        return this.systemErrorResult('Jacobiana singular o casi singular', params, f1, f2, iterations);
+      }
+
+      const deltaX = (-fx1 * j22 + j12 * fx2) / det;
+      const deltaY = (j21 * fx1 - j11 * fx2) / det;
+      const xNext = x + deltaX;
+      const yNext = y + deltaY;
+      const ea = Math.max(Math.abs(deltaX), Math.abs(deltaY));
+      const denom = Math.max(Math.abs(xNext), Math.abs(yNext), 1);
+      const er = (ea / denom) * 100;
+
+      iterations.push({
+        iteration: i,
+        x,
+        y,
+        f1: fx1,
+        f2: fx2,
+        j11,
+        j12,
+        j21,
+        j22,
+        deltaX,
+        deltaY,
+        xNext,
+        yNext,
+        ea,
+        er: er.toFixed(6) + '%',
+      });
+
+      x = xNext;
+      y = yNext;
+
+      if (!isFinite(x) || !isFinite(y)) {
+        return this.systemErrorResult('La iteración produjo valores no finitos', params, f1, f2, iterations);
+      }
+
+      if (ea < tol || Math.max(Math.abs(fx1), Math.abs(fx2)) < 1e-15) {
+        converged = true;
+        break;
+      }
+    }
+
+    const lastIter = iterations[iterations.length - 1];
+    return {
+      functionF1: f1,
+      functionF2: f2,
+      solution: { x, y },
+      error: lastIter?.ea ?? null,
+      iterations,
+      converged,
+      message: converged
+        ? 'Convergencia alcanzada para el sistema'
+        : 'No se alcanzó la convergencia en el máximo de iteraciones',
+      params,
+    };
+  }
+
+  private static systemErrorResult(
+    message: string,
+    params: Record<string, any>,
+    f1: string,
+    f2: string,
+    iterations: SystemIterationData[] = []
+  ): SystemCalculationResult {
+    return {
+      functionF1: f1,
+      functionF2: f2,
+      solution: null,
+      error: iterations[iterations.length - 1]?.ea ?? null,
+      iterations,
+      converged: false,
+      message,
+      params,
+    };
   }
 
   private static errorResult(method: MethodType, f: string, message: string, params: any, g?: string): CalculationResult {

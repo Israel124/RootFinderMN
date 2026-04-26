@@ -10,6 +10,8 @@ import { MethodsSection } from './components/MethodsSection';
 import { ResultsSection } from './components/ResultsSection';
 import { HistorySection } from './components/HistorySection';
 import { GraphSection } from './components/GraphSection';
+import { NewtonSystemSection } from './components/NewtonSystemSection';
+import { SYSTEM_HISTORY_KEY, SYSTEM_HISTORY_UPDATED_EVENT } from './lib/historyKeys';
 import { CalculationResult, MethodType } from './types';
 import { Toaster } from '@/components/ui/sonner';
 import { motion, AnimatePresence } from 'motion/react';
@@ -36,7 +38,18 @@ export default function App() {
 
   const [currentResult, setCurrentResult] = useState<CalculationResult | null>(null);
   const [history, setHistory] = useState<CalculationResult[]>([]);
+  const [systemHistoryCount, setSystemHistoryCount] = useState(0);
   const [hasChanges, setHasChanges] = useState(false);
+
+  const loadSystemHistoryCount = () => {
+    try {
+      const raw = window.localStorage.getItem(SYSTEM_HISTORY_KEY);
+      const items = raw ? JSON.parse(raw) : [];
+      setSystemHistoryCount(Array.isArray(items) ? items.length : 0);
+    } catch {
+      setSystemHistoryCount(0);
+    }
+  };
 
   const handleClearFields = () => {
     setF('');
@@ -82,6 +95,19 @@ export default function App() {
       .then(res => res.json())
       .then(data => setHistory(data))
       .catch(err => console.error('Error loading history:', err));
+  }, []);
+
+  useEffect(() => {
+    loadSystemHistoryCount();
+
+    const refresh = () => loadSystemHistoryCount();
+    window.addEventListener(SYSTEM_HISTORY_UPDATED_EVENT, refresh);
+    window.addEventListener('storage', refresh);
+
+    return () => {
+      window.removeEventListener(SYSTEM_HISTORY_UPDATED_EVENT, refresh);
+      window.removeEventListener('storage', refresh);
+    };
   }, []);
 
   const handleNewResult = async (result: CalculationResult) => {
@@ -244,8 +270,8 @@ export default function App() {
           </div>
           <div className="rounded-[2rem] border border-primary/10 bg-card/55 p-6 shadow-xl backdrop-blur-xl">
             <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/60">Estado</p>
-            <p className="mt-3 text-3xl font-black">{history.length}</p>
-            <p className="mt-2 text-sm text-muted-foreground">registros en historial listos para recarga y comparación.</p>
+            <p className="mt-3 text-3xl font-black">{history.length + systemHistoryCount}</p>
+            <p className="mt-2 text-sm text-muted-foreground">registros totales en historial listos para recarga y comparación.</p>
           </div>
         </section>
 
@@ -290,6 +316,9 @@ export default function App() {
               )}
               {activeTab === 'graph' && (
                 <GraphSection f={f} root={currentResult?.root || null} />
+              )}
+              {activeTab === 'systems' && (
+                <NewtonSystemSection />
               )}
             </motion.div>
           </AnimatePresence>

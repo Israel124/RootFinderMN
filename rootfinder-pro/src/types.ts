@@ -28,6 +28,35 @@ export interface CalculationResult {
   label?: string;
 }
 
+export interface SystemIterationData {
+  iteration: number;
+  x: number;
+  y: number;
+  f1: number;
+  f2: number;
+  j11: number;
+  j12: number;
+  j21: number;
+  j22: number;
+  deltaX: number;
+  deltaY: number;
+  xNext: number;
+  yNext: number;
+  ea: number;
+  er: string;
+}
+
+export interface SystemCalculationResult {
+  functionF1: string;
+  functionF2: string;
+  solution: { x: number; y: number } | null;
+  error: number | null;
+  iterations: SystemIterationData[];
+  converged: boolean;
+  message: string;
+  params: Record<string, any>;
+}
+
 export interface HistoryItem {
   id: string;
   timestamp: number;

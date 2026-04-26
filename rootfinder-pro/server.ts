@@ -20,6 +20,48 @@ const pool = process.env.DATABASE_URL
     })
   : null;
 
+const ALLOWED_METHODS = new Set([
+  "bisection",
+  "false-position",
+  "newton-raphson",
+  "secant",
+  "fixed-point",
+]);
+
+function sanitizeText(value: unknown, maxLength: number) {
+  if (typeof value !== "string") return "";
+  return value.replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, maxLength);
+}
+
+function sanitizeCalculationPayload(input: any) {
+  if (!input || typeof input !== "object") {
+    throw new Error("Payload inválido");
+  }
+
+  const method = sanitizeText(input.method, 40);
+  if (!ALLOWED_METHODS.has(method)) {
+    throw new Error("Método inválido");
+  }
+
+  const iterations = Array.isArray(input.iterations) ? input.iterations.slice(0, 500) : [];
+  const params = input.params && typeof input.params === "object" ? input.params : {};
+
+  return {
+    id: sanitizeText(input.id, 80),
+    timestamp: Number.isFinite(Number(input.timestamp)) ? Number(input.timestamp) : Date.now(),
+    method,
+    functionF: sanitizeText(input.functionF, 1000),
+    functionG: sanitizeText(input.functionG, 1000) || null,
+    root: input.root === null || Number.isFinite(Number(input.root)) ? input.root : null,
+    error: input.error === null || Number.isFinite(Number(input.error)) ? input.error : null,
+    iterations,
+    converged: Boolean(input.converged),
+    message: sanitizeText(input.message, 500),
+    params,
+    label: sanitizeText(input.label, 120) || null,
+  };
+}
+
 async function initDb() {
   if (!pool || !process.env.DATABASE_URL) {
     console.warn("DATABASE_URL not found. Skipping DB initialization.");
@@ -66,7 +108,18 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 4000;
 
-  app.use(express.json());
+  app.disable("x-powered-by");
+  app.use(express.json({ limit: "200kb" }));
+  app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self';"
+    );
+    next();
+  });
 
   await initDb();
 
@@ -98,7 +151,12 @@ async function startServer() {
 
   app.post("/api/history", async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Base de datos no configurada (DATABASE_URL faltante)" });
-    const item = req.body;
+    let item;
+    try {
+      item = sanitizeCalculationPayload(req.body);
+    } catch (err) {
+      return res.status(400).json({ error: (err as Error).message });
+    }
     
     if (!item.id || !item.method || !item.functionF) {
       return res.status(400).json({ error: "Datos incompletos para guardar el cálculo" });
@@ -151,7 +209,7 @@ async function startServer() {
     try {
       if (Object.keys(otherData).length > 0) {
         // Full update if more data is provided
-        const item = otherData;
+        const item = sanitizeCalculationPayload({ ...otherData, label });
         await pool.query(
           `UPDATE calculations SET 
             method = $1, function_f = $2, function_g = $3, root = $4, 
@@ -167,7 +225,7 @@ async function startServer() {
         );
       } else {
         // Just update label
-        await pool.query("UPDATE calculations SET label = $1 WHERE id = $2", [label, req.params.id]);
+        await pool.query("UPDATE calculations SET label = $1 WHERE id = $2", [sanitizeText(label, 120), sanitizeText(req.params.id, 80)]);
       }
       res.status(200).json({ success: true });
     } catch (err) {

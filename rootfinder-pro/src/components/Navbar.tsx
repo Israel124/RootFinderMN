@@ -34,7 +34,7 @@ const moduleTabs = [
     step: '4',
     title: 'Newton-Raphson Sistemas',
     subtitle: 'Ecuaciones no lineales múltiples',
-    status: 'soon',
+    status: 'active',
   },
 ] as const;
 
@@ -49,6 +49,7 @@ const resolutionSections = [
 export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const activeModule = activeTab === 'systems' ? 'systems' : 'resolution';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -72,7 +73,8 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
       <div className="grid gap-2 xl:grid-cols-4">
         {moduleTabs.map((tab) => {
           const isResolution = tab.id === 'resolution';
-          const isSelected = isResolution;
+          const isSystems = tab.id === 'systems';
+          const isSelected = tab.id === activeModule;
 
           return (
             <div key={tab.id}>
@@ -80,6 +82,10 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
                 type="button"
                 onClick={() => {
                   if (isResolution) setMenuOpen((open) => !open);
+                  if (isSystems) {
+                    setActiveTab('systems');
+                    setMenuOpen(false);
+                  }
                 }}
                 className={cn(
                   'flex w-full items-start gap-3 rounded-[1.4rem] border px-4 py-3 text-left transition-all',
@@ -103,11 +109,6 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
                           menuOpen && 'rotate-180 text-primary'
                         )}
                       />
-                    )}
-                    {tab.status === 'soon' && (
-                      <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                        Próx.
-                      </span>
                     )}
                   </div>
                   <p className="truncate text-xs text-muted-foreground">{tab.subtitle}</p>
