@@ -11,7 +11,13 @@ import { ResultsSection } from './components/ResultsSection';
 import { HistorySection } from './components/HistorySection';
 import { GraphSection } from './components/GraphSection';
 import { NewtonSystemSection } from './components/NewtonSystemSection';
-import { SYSTEM_HISTORY_KEY, SYSTEM_HISTORY_UPDATED_EVENT } from './lib/historyKeys';
+import { TaylorSection } from './components/TaylorSection';
+import {
+  SYSTEM_HISTORY_KEY,
+  SYSTEM_HISTORY_UPDATED_EVENT,
+  TAYLOR_HISTORY_KEY,
+  TAYLOR_HISTORY_UPDATED_EVENT,
+} from './lib/historyKeys';
 import { CalculationResult, MethodType } from './types';
 import { Toaster } from '@/components/ui/sonner';
 import { motion, AnimatePresence } from 'motion/react';
@@ -39,6 +45,7 @@ export default function App() {
   const [currentResult, setCurrentResult] = useState<CalculationResult | null>(null);
   const [history, setHistory] = useState<CalculationResult[]>([]);
   const [systemHistoryCount, setSystemHistoryCount] = useState(0);
+  const [taylorHistoryCount, setTaylorHistoryCount] = useState(0);
   const [hasChanges, setHasChanges] = useState(false);
 
   const loadSystemHistoryCount = () => {
@@ -48,6 +55,16 @@ export default function App() {
       setSystemHistoryCount(Array.isArray(items) ? items.length : 0);
     } catch {
       setSystemHistoryCount(0);
+    }
+  };
+
+  const loadTaylorHistoryCount = () => {
+    try {
+      const raw = window.localStorage.getItem(TAYLOR_HISTORY_KEY);
+      const items = raw ? JSON.parse(raw) : [];
+      setTaylorHistoryCount(Array.isArray(items) ? items.length : 0);
+    } catch {
+      setTaylorHistoryCount(0);
     }
   };
 
@@ -99,14 +116,22 @@ export default function App() {
 
   useEffect(() => {
     loadSystemHistoryCount();
+    loadTaylorHistoryCount();
 
-    const refresh = () => loadSystemHistoryCount();
-    window.addEventListener(SYSTEM_HISTORY_UPDATED_EVENT, refresh);
-    window.addEventListener('storage', refresh);
+    const refreshSystem = () => loadSystemHistoryCount();
+    const refreshTaylor = () => loadTaylorHistoryCount();
+    const refreshAll = () => {
+      loadSystemHistoryCount();
+      loadTaylorHistoryCount();
+    };
+    window.addEventListener(SYSTEM_HISTORY_UPDATED_EVENT, refreshSystem);
+    window.addEventListener(TAYLOR_HISTORY_UPDATED_EVENT, refreshTaylor);
+    window.addEventListener('storage', refreshAll);
 
     return () => {
-      window.removeEventListener(SYSTEM_HISTORY_UPDATED_EVENT, refresh);
-      window.removeEventListener('storage', refresh);
+      window.removeEventListener(SYSTEM_HISTORY_UPDATED_EVENT, refreshSystem);
+      window.removeEventListener(TAYLOR_HISTORY_UPDATED_EVENT, refreshTaylor);
+      window.removeEventListener('storage', refreshAll);
     };
   }, []);
 
@@ -270,7 +295,7 @@ export default function App() {
           </div>
           <div className="rounded-[2rem] border border-primary/10 bg-card/55 p-6 shadow-xl backdrop-blur-xl">
             <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/60">Estado</p>
-            <p className="mt-3 text-3xl font-black">{history.length + systemHistoryCount}</p>
+            <p className="mt-3 text-3xl font-black">{history.length + systemHistoryCount + taylorHistoryCount}</p>
             <p className="mt-2 text-sm text-muted-foreground">registros totales en historial listos para recarga y comparación.</p>
           </div>
         </section>
@@ -288,6 +313,9 @@ export default function App() {
             >
               {activeTab === 'verification' && (
                 <VerificationSection f={f} setF={setF} a={a} setA={setA} b={b} setB={setB} />
+              )}
+              {activeTab === 'taylor' && (
+                <TaylorSection />
               )}
               {activeTab === 'methods' && (
                 <MethodsSection 

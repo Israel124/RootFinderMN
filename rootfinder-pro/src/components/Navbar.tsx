@@ -49,7 +49,7 @@ const resolutionSections = [
 export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const activeModule = activeTab === 'systems' ? 'systems' : 'resolution';
+  const activeModule = activeTab === 'systems' ? 'systems' : activeTab === 'taylor' ? 'taylor' : 'resolution';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -74,6 +74,7 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
         {moduleTabs.map((tab) => {
           const isResolution = tab.id === 'resolution';
           const isSystems = tab.id === 'systems';
+          const isTaylor = tab.id === 'taylor';
           const isSelected = tab.id === activeModule;
 
           return (
@@ -82,6 +83,10 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
                 type="button"
                 onClick={() => {
                   if (isResolution) setMenuOpen((open) => !open);
+                  if (isTaylor) {
+                    setActiveTab('taylor');
+                    setMenuOpen(false);
+                  }
                   if (isSystems) {
                     setActiveTab('systems');
                     setMenuOpen(false);
