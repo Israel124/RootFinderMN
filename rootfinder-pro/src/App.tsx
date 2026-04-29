@@ -4,6 +4,7 @@
  */
 
 import { CSSProperties, lazy, Suspense, useEffect, useState } from 'react';
+import { cn } from '@/lib/utils';
 import { Navbar } from './components/Navbar';
 import { VerificationSection } from './components/VerificationSection';
 import { MethodsSection } from './components/MethodsSection';
@@ -40,6 +41,38 @@ const HistorySection = lazy(() => import('./components/HistorySection').then((mo
 const GraphSection = lazy(() => import('./components/GraphSection').then((module) => ({ default: module.GraphSection })));
 const NewtonSystemSection = lazy(() => import('./components/NewtonSystemSection').then((module) => ({ default: module.NewtonSystemSection })));
 const TaylorSection = lazy(() => import('./components/TaylorSection').then((module) => ({ default: module.TaylorSection })));
+
+const getModuleTheme = (tab: AppTab) => {
+  if (tab === 'taylor') {
+    return {
+      title: 'Aproximaciones Taylor',
+      subtitle: 'Series y error de truncamiento',
+      themeClass: 'tab-theme-taylor',
+    };
+  }
+
+  if (tab === 'polynomial') {
+    return {
+      title: 'Raíces Polinómicas',
+      subtitle: 'Müller · Bairstow · Horner',
+      themeClass: 'tab-theme-polynomial',
+    };
+  }
+
+  if (tab === 'systems') {
+    return {
+      title: 'Newton-Raphson Sistemas',
+      subtitle: 'Ecuaciones no lineales múltiples',
+      themeClass: 'tab-theme-systems',
+    };
+  }
+
+  return {
+    title: 'Métodos de Resolución',
+    subtitle: 'Ecuaciones no lineales',
+    themeClass: 'tab-theme-resolution',
+  };
+};
 
 const universityImage =
   'https://assets.agris.fao.org/public/styles/fao_ui_banner/public/images/2024-02/420049206_758805662963701_6273589032551930458_n.jpeg?itok=32mHwNjl';
@@ -444,8 +477,10 @@ export default function App() {
     toast.success('Datos cargados del historial');
   };
 
+  const activeModuleMetadata = getModuleTheme(activeTab);
+
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/20">
+    <div className={cn('min-h-screen bg-background text-foreground font-sans selection:bg-primary/20', activeModuleMetadata.themeClass)}>
       {page === 'landing' ? (
         <LandingHero
           onOpenApp={(tab = 'verification') => navigateToApp(tab)}
@@ -491,16 +526,16 @@ export default function App() {
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-3xl">
                 <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary/60">Panel Principal</p>
-                <h2 className="mt-4 text-3xl font-black tracking-tight text-foreground sm:text-4xl">Resuelve, compara y valida</h2>
+                <h2 className="mt-4 text-3xl font-black tracking-tight text-foreground sm:text-4xl">{activeModuleMetadata.title}</h2>
                 <p className="mt-4 text-sm leading-7 text-muted-foreground sm:text-base">
-                  Comienza por la aproximación Taylor y navega paso a paso entre verificación, métodos y resultados.
+                  Explora {activeModuleMetadata.subtitle.toLowerCase()} y aplica la paleta activa para graficas, cuadros e interacciones.
                   Esta vista prioriza el proceso académico antes de llegar a los métodos de resolución.
                 </p>
               </div>
               <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-xl shadow-white/5">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/70">Módulo activo</p>
-                <p className="mt-3 text-xl font-black text-foreground">Aproximaciones Taylor</p>
-                <p className="mt-2 text-sm text-muted-foreground">Series y error de truncamiento</p>
+                <p className="mt-3 text-xl font-black text-primary">{activeModuleMetadata.title}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{activeModuleMetadata.subtitle}</p>
               </div>
             </div>
           </div>

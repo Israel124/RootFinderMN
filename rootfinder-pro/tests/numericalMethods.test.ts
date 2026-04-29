@@ -22,3 +22,11 @@ test('Newton-Raphson converge para una funcion suave', () => {
   assert.ok(result.root !== null);
   assert.ok(Math.abs(result.root! - Math.SQRT2) < 1e-6);
 });
+
+test('Newton-Raphson para sistema acepta ecuaciones con equality', () => {
+  const result = NumericalMethods.newtonRaphsonSystem2x2('x^2 + y^2 = 4', 'x - y = 1', 1.5, 0.5, 1e-6, 20);
+  assert.equal(result.converged, true);
+  assert.ok(result.solution !== null);
+  assert.ok(Math.abs(result.solution!.x - 1.8228756555) < 1e-6);
+  assert.ok(Math.abs(result.solution!.y - 0.8228756555) < 1e-6);
+});

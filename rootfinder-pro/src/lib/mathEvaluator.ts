@@ -24,8 +24,29 @@ export class MathEvaluator {
 
   private static preprocess(expression: string): string {
     const normalized = expression.trim();
-    let expr = normalized.toLowerCase();
+    let expr = normalized;
 
+    // Allow users to enter equations like "x^2 + y^2 = 4" and normalize them
+    // as expressions of the form (left) - (right) = 0.
+    if (expr.includes('=') && !expr.includes('==') && !expr.includes('<=') && !expr.includes('>=') && !expr.includes('!=')) {
+      const [left, ...rightParts] = expr.split('=');
+      const right = rightParts.join('=').trim();
+      expr = `(${left.trim()})-(${right})`;
+    }
+
+    // Convert implicit multiplication like xy, 3x, x2, x y into explicit form
+    // Add implicit multiplication: 
+    // 3x -> 3*x, xy -> x*y, x3 -> x*3
+    expr = expr.replace(/([0-9])\s*([a-z])/gi, '$1*$2');
+    expr = expr.replace(/([a-z])\s*([a-z])/gi, '$1*$2');
+    expr = expr.replace(/([a-z])\s*([0-9])/gi, '$1*$2');
+    
+    // Parentheses implicit multiplication: 3(x) -> 3*(x), (x)(y) -> (x)*(y), (x)3 -> (x)*3
+    expr = expr.replace(/([0-9a-z])\s*\(/gi, '$1*(');
+    expr = expr.replace(/\)\s*([0-9a-z])/gi, ')*$1');
+    expr = expr.replace(/\)\s*\(/gi, ')*(');
+
+    expr = expr.toLowerCase();
     expr = expr.replace(/\bsen\b/g, 'sin');
     expr = expr.replace(/\bln\b/g, 'log');
 

@@ -34,18 +34,30 @@ export function GraphSection({ f, root }: GraphSectionProps) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const width = canvas.width;
-    const height = canvas.height;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const width = Math.round(rect.width * dpr);
+    const height = Math.round(rect.height * dpr);
+
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const drawWidth = rect.width;
+    const drawHeight = rect.height;
+
     const { xmin, xmax, ymin, ymax } = normalizeRange(range, defaultRange);
 
     if (xmin >= xmax || ymin >= ymax) return;
 
     // Clear
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, drawWidth, drawHeight);
 
     // Helpers to convert math coords to pixel coords
-    const toPxX = (x: number) => ((x - xmin) / (xmax - xmin)) * width;
-    const toPxY = (y: number) => height - ((y - ymin) / (ymax - ymin)) * height;
+    const toPxX = (x: number) => ((x - xmin) / (xmax - xmin)) * drawWidth;
+    const toPxY = (y: number) => drawHeight - ((y - ymin) / (ymax - ymin)) * drawHeight;
 
     // Draw Grid
     ctx.strokeStyle = '#131c19';
@@ -87,7 +99,7 @@ export function GraphSection({ f, root }: GraphSectionProps) {
     ctx.lineJoin = 'round';
     ctx.beginPath();
     
-    const step = (xmax - xmin) / width;
+    const step = (xmax - xmin) / drawWidth;
     let first = true;
     const samples: Array<{ x: number; y: number }> = [];
 
@@ -140,10 +152,17 @@ export function GraphSection({ f, root }: GraphSectionProps) {
 
   useEffect(() => {
     if (!f) return;
-    drawOnCanvas(canvasRef.current);
-    if (isDialogOpen) {
-      setTimeout(() => drawOnCanvas(fullCanvasRef.current), 50);
-    }
+
+    const render = () => {
+      drawOnCanvas(canvasRef.current);
+      if (isDialogOpen) {
+        drawOnCanvas(fullCanvasRef.current);
+      }
+    };
+
+    render();
+    window.addEventListener('resize', render);
+    return () => window.removeEventListener('resize', render);
   }, [drawOnCanvas, f, root, range, isDialogOpen]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -221,8 +240,6 @@ export function GraphSection({ f, root }: GraphSectionProps) {
                 <div className="relative w-full h-full bg-black">
                   <canvas 
                     ref={fullCanvasRef} 
-                    width={1600} 
-                    height={900} 
                     className="w-full h-full cursor-crosshair"
                     onMouseMove={handleMouseMove}
                     onMouseLeave={handleMouseLeave}
@@ -246,8 +263,6 @@ export function GraphSection({ f, root }: GraphSectionProps) {
           <div className="aspect-[16/9] bg-black rounded-2xl border border-primary/20 overflow-hidden relative group shadow-2xl">
             <canvas 
               ref={canvasRef} 
-              width={1200} 
-              height={675} 
               className="w-full h-full cursor-crosshair"
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}

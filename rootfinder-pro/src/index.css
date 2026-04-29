@@ -31,6 +31,34 @@
   --radius-sm: 0.5rem;
 }
 
+.tab-theme-taylor {
+  --color-primary: #10b981;
+  --color-primary-foreground: #050807;
+  --color-accent: #10b981;
+  --color-ring: #10b981;
+}
+
+.tab-theme-resolution {
+  --color-primary: #06b6d4;
+  --color-primary-foreground: #0f172a;
+  --color-accent: #06b6d4;
+  --color-ring: #06b6d4;
+}
+
+.tab-theme-polynomial {
+  --color-primary: #f59e0b;
+  --color-primary-foreground: #371f0d;
+  --color-accent: #f59e0b;
+  --color-ring: #f59e0b;
+}
+
+.tab-theme-systems {
+  --color-primary: #fb7185;
+  --color-primary-foreground: #3f1f25;
+  --color-accent: #fb7185;
+  --color-ring: #fb7185;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

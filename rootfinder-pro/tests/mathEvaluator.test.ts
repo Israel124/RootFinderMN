@@ -15,3 +15,7 @@ test('MathEvaluator calcula derivadas y derivadas de orden superior', () => {
 test('MathEvaluator rechaza expresiones invalidas', () => {
   assert.equal(MathEvaluator.isValid('sqrt('), false);
 });
+
+test('MathEvaluator acepta multiplicación implícita con xy', () => {
+  assert.equal(MathEvaluator.evaluateWithScope('x^2 + xy - 10', { x: 1.5, y: 3.5 }), 1.5 ** 2 + 1.5 * 3.5 - 10);
+});

@@ -163,7 +163,7 @@ export class NumericalMethods {
         er: er.toFixed(6) + '%'
       });
 
-      if (Math.abs(fxr) < 1e-15 || (i > 1 && ea < tol)) {
+      if (Math.abs(fxr) < 1e-15 || (i > 1 && ea <= tol)) {
         converged = true;
         break;
       }
@@ -226,7 +226,7 @@ export class NumericalMethods {
         er: er.toFixed(6) + '%'
       });
 
-      if (Math.abs(fxr) < 1e-15 || (i > 1 && ea < tol)) {
+      if (Math.abs(fxr) < 1e-15 || (i > 1 && ea <= tol)) {
         converged = true;
         break;
       }
@@ -275,7 +275,7 @@ export class NumericalMethods {
         er: er.toFixed(6) + '%'
       });
 
-      if (Math.abs(fxiNext) < 1e-15 || ea < tol) {
+      if (Math.abs(fxiNext) < 1e-15 || ea <= tol) {
         xi = xiNext;
         converged = true;
         break;
@@ -322,7 +322,7 @@ export class NumericalMethods {
         er: er.toFixed(6) + '%'
       });
 
-      if (Math.abs(fxiNext) < 1e-15 || ea < tol) {
+      if (Math.abs(fxiNext) < 1e-15 || ea <= tol) {
         xi = xi_next;
         converged = true;
         break;
@@ -427,7 +427,7 @@ export class NumericalMethods {
         er: er.toFixed(6) + '%'
       });
 
-      if (ea < tol || (fxi !== null && Math.abs(fxi) < 1e-15)) {
+      if (ea <= tol || (fxi !== null && Math.abs(fxi) < 1e-15)) {
         xi = xiNext;
         converged = true;
         break;
@@ -508,7 +508,7 @@ export class NumericalMethods {
         return this.systemErrorResult('La iteración produjo valores no finitos', params, f1, f2, iterations);
       }
 
-      if (ea < tol || Math.max(Math.abs(nextF1), Math.abs(nextF2)) < 1e-15) {
+      if (ea <= tol || Math.max(Math.abs(nextF1), Math.abs(nextF2)) < 1e-15) {
         converged = true;
         break;
       }

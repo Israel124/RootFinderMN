@@ -123,86 +123,122 @@ export function NewtonSystemSection() {
     const canvas = graphRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const drawGraph = () => {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-    const width = canvas.width;
-    const height = canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#050807';
-    ctx.fillRect(0, 0, width, height);
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.round(rect.width * dpr);
+      const height = Math.round(rect.height * dpr);
 
-    const points = result?.iterations.map((item) => ({ x: item.x, y: item.y })) ?? [];
-    if (result?.solution) {
-      points.push({ x: result.solution.x, y: result.solution.y });
-    }
-
-    if (points.length === 0) {
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '14px sans-serif';
-      ctx.fillText('Calcula el sistema para ver la trayectoria iterativa.', 28, 40);
-      return;
-    }
-
-    const padding = 42;
-    const xs = points.map((point) => point.x);
-    const ys = points.map((point) => point.y);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    const spanX = Math.max(maxX - minX, 1);
-    const spanY = Math.max(maxY - minY, 1);
-
-    const toPxX = (value: number) => padding + ((value - minX) / spanX) * (width - padding * 2);
-    const toPxY = (value: number) => height - padding - ((value - minY) / spanY) * (height - padding * 2);
-
-    ctx.strokeStyle = '#1e292b';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 5; i++) {
-      const xGuide = padding + (i / 4) * (width - padding * 2);
-      const yGuide = padding + (i / 4) * (height - padding * 2);
-      ctx.beginPath();
-      ctx.moveTo(xGuide, padding);
-      ctx.lineTo(xGuide, height - padding);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(padding, yGuide);
-      ctx.lineTo(width - padding, yGuide);
-      ctx.stroke();
-    }
-
-    ctx.strokeStyle = '#10b981';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    points.forEach((point, index) => {
-      const px = toPxX(point.x);
-      const py = toPxY(point.y);
-      if (index === 0) {
-        ctx.moveTo(px, py);
-      } else {
-        ctx.lineTo(px, py);
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
       }
-    });
-    ctx.stroke();
 
-    points.forEach((point, index) => {
-      const px = toPxX(point.x);
-      const py = toPxY(point.y);
-      ctx.fillStyle = index === points.length - 1 ? '#f59e0b' : '#ecfdf5';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.fillStyle = '#050807';
+      ctx.fillRect(0, 0, rect.width, rect.height);
+
+      const points = result?.iterations.map((item) => ({ x: item.x, y: item.y })) ?? [];
+      if (result?.solution) {
+        points.push({ x: result.solution.x, y: result.solution.y });
+      }
+
+      if (points.length === 0) {
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '14px sans-serif';
+        ctx.fillText('Calcula el sistema para ver la trayectoria iterativa.', 28, 40);
+        return;
+      }
+
+      const padding = 42;
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+      let minX = Math.min(...xs);
+      let maxX = Math.max(...xs);
+      let minY = Math.min(...ys);
+      let maxY = Math.max(...ys);
+      const spanX = Math.max(maxX - minX, 0.5);
+      const spanY = Math.max(maxY - minY, 0.5);
+      const marginX = Math.max(spanX * 0.18, 0.5);
+      const marginY = Math.max(spanY * 0.18, 0.5);
+      minX -= marginX;
+      maxX += marginX;
+      minY -= marginY;
+      maxY += marginY;
+      const spanXWithMargin = Math.max(maxX - minX, 0.5);
+      const spanYWithMargin = Math.max(maxY - minY, 0.5);
+
+      const toPxX = (value: number) => padding + ((value - minX) / spanXWithMargin) * (rect.width - padding * 2);
+      const toPxY = (value: number) => rect.height - padding - ((value - minY) / spanYWithMargin) * (rect.height - padding * 2);
+
+      ctx.strokeStyle = '#1e292b';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6, 6]);
+      for (let i = 0; i < 5; i++) {
+        const xGuide = padding + (i / 4) * (rect.width - padding * 2);
+        const yGuide = padding + (i / 4) * (rect.height - padding * 2);
+        ctx.beginPath();
+        ctx.moveTo(xGuide, padding);
+        ctx.lineTo(xGuide, rect.height - padding);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(padding, yGuide);
+        ctx.lineTo(rect.width - padding, yGuide);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      const xAxisY = 0 >= minY && 0 <= maxY ? toPxY(0) : rect.height - padding;
+      const yAxisX = 0 >= minX && 0 <= maxX ? toPxX(0) : padding;
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(px, py, index === points.length - 1 ? 6 : 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '11px sans-serif';
-      const label = index === points.length - 1 ? 'sol' : `i${index + 1}`;
-      ctx.fillText(label, px + 8, py - 8);
-    });
+      ctx.moveTo(padding, xAxisY);
+      ctx.lineTo(rect.width - padding, xAxisY);
+      ctx.moveTo(yAxisX, padding);
+      ctx.lineTo(yAxisX, rect.height - padding);
+      ctx.stroke();
 
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '12px sans-serif';
-    ctx.fillText(`x: [${minX.toFixed(3)}, ${maxX.toFixed(3)}]`, padding, height - 12);
-    ctx.fillText(`y: [${minY.toFixed(3)}, ${maxY.toFixed(3)}]`, width - 150, height - 12);
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      points.forEach((point, index) => {
+        const px = toPxX(point.x);
+        const py = toPxY(point.y);
+        if (index === 0) {
+          ctx.moveTo(px, py);
+        } else {
+          ctx.lineTo(px, py);
+        }
+      });
+      ctx.stroke();
+
+      points.forEach((point, index) => {
+        const px = toPxX(point.x);
+        const py = toPxY(point.y);
+        ctx.fillStyle = index === points.length - 1 ? '#f59e0b' : '#ecfdf5';
+        ctx.beginPath();
+        ctx.arc(px, py, index === points.length - 1 ? 6 : 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '12px sans-serif';
+        const label = index === points.length - 1 ? 'sol' : `i${index + 1}`;
+        ctx.fillText(label, px + 10, py - 10);
+      });
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '12px sans-serif';
+      ctx.fillText(`x: [${minX.toFixed(3)}, ${maxX.toFixed(3)}]`, padding, rect.height - 16);
+      ctx.fillText(`y: [${minY.toFixed(3)}, ${maxY.toFixed(3)}]`, rect.width - 180, rect.height - 16);
+    };
+
+    drawGraph();
+    window.addEventListener('resize', drawGraph);
+    return () => window.removeEventListener('resize', drawGraph);
   }, [result]);
 
   const handleLoadHistory = (item: SystemHistoryItem) => {
@@ -460,7 +496,7 @@ export function NewtonSystemSection() {
             </CardHeader>
             <CardContent>
               <div className="overflow-hidden rounded-2xl border border-primary/20 bg-black">
-                <canvas ref={graphRef} width={1200} height={520} className="h-auto w-full min-h-[22rem] lg:min-h-[30rem]" />
+                <canvas ref={graphRef} className="w-full min-h-[28rem] lg:min-h-[36rem]" />
               </div>
             </CardContent>
           </Card>
