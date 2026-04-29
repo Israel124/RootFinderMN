@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import pg from "pg";
 import dotenv from "dotenv";
+import type { AddressInfo } from "net";
 
 dotenv.config();
 
@@ -33,6 +34,47 @@ function sanitizeText(value: unknown, maxLength: number) {
   return value.replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, maxLength);
 }
 
+function sanitizeNumber(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function sanitizeJsonRecord(input: unknown) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return {};
+  }
+
+  const record: Record<string, string | number | boolean | null> = {};
+  for (const [key, value] of Object.entries(input)) {
+    const safeKey = sanitizeText(key, 60);
+    if (!safeKey) continue;
+
+    if (typeof value === "string") {
+      record[safeKey] = sanitizeText(value, 300);
+      continue;
+    }
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      record[safeKey] = value;
+      continue;
+    }
+
+    if (typeof value === "boolean" || value === null) {
+      record[safeKey] = value;
+    }
+  }
+
+  return record;
+}
+
+function sanitizeIterations(input: unknown) {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input.slice(0, 500).map((item) => sanitizeJsonRecord(item));
+}
+
 function sanitizeCalculationPayload(input: any) {
   if (!input || typeof input !== "object") {
     throw new Error("Payload inválido");
@@ -43,8 +85,8 @@ function sanitizeCalculationPayload(input: any) {
     throw new Error("Método inválido");
   }
 
-  const iterations = Array.isArray(input.iterations) ? input.iterations.slice(0, 500) : [];
-  const params = input.params && typeof input.params === "object" ? input.params : {};
+  const iterations = sanitizeIterations(input.iterations);
+  const params = sanitizeJsonRecord(input.params);
 
   return {
     id: sanitizeText(input.id, 80),
@@ -52,8 +94,8 @@ function sanitizeCalculationPayload(input: any) {
     method,
     functionF: sanitizeText(input.functionF, 1000),
     functionG: sanitizeText(input.functionG, 1000) || null,
-    root: input.root === null || Number.isFinite(Number(input.root)) ? input.root : null,
-    error: input.error === null || Number.isFinite(Number(input.error)) ? input.error : null,
+    root: input.root === null ? null : sanitizeNumber(input.root),
+    error: input.error === null ? null : sanitizeNumber(input.error),
     iterations,
     converged: Boolean(input.converged),
     message: sanitizeText(input.message, 500),
@@ -70,34 +112,35 @@ async function initDb() {
     try {
       const client = await pool.connect();
       console.log("Database connection established.");
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS calculations (
-          id UUID PRIMARY KEY,
-          timestamp BIGINT NOT NULL,
-          method TEXT NOT NULL,
-          function_f TEXT NOT NULL,
-          function_g TEXT,
-          root DOUBLE PRECISION,
-          error DOUBLE PRECISION,
-          iterations JSONB NOT NULL,
-          converged BOOLEAN NOT NULL,
-          message TEXT,
-          params JSONB NOT NULL,
-          label TEXT
-        );
-      `);
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS calculations (
+            id UUID PRIMARY KEY,
+            timestamp BIGINT NOT NULL,
+            method TEXT NOT NULL,
+            function_f TEXT NOT NULL,
+            function_g TEXT,
+            root DOUBLE PRECISION,
+            error DOUBLE PRECISION,
+            iterations JSONB NOT NULL,
+            converged BOOLEAN NOT NULL,
+            message TEXT,
+            params JSONB NOT NULL,
+            label TEXT
+          );
+        `);
 
-      // Check if label column exists (for existing databases)
-      const columnCheck = await client.query(`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name='calculations' AND column_name='label';
-      `);
-      if (columnCheck.rowCount === 0) {
-        await client.query('ALTER TABLE calculations ADD COLUMN label TEXT;');
+        const columnCheck = await client.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name='calculations' AND column_name='label';
+        `);
+        if (columnCheck.rowCount === 0) {
+          await client.query('ALTER TABLE calculations ADD COLUMN label TEXT;');
+        }
+      } finally {
+        client.release();
       }
-
-      client.release();
       console.log("Database initialized successfully.");
     } catch (err) {
       console.error("FATAL: Error initializing database:", err);
@@ -106,7 +149,7 @@ async function initDb() {
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 4000;
+  const preferredPort = Number(process.env.PORT) || 4000;
 
   app.disable("x-powered-by");
   app.use(express.json({ limit: "200kb" }));
@@ -204,6 +247,7 @@ async function startServer() {
 
   app.patch("/api/history/:id", async (req, res) => {
     if (!pool) return res.status(200).end();
+    const safeId = sanitizeText(req.params.id, 80);
     const { label, ...otherData } = req.body;
     
     try {
@@ -220,12 +264,11 @@ async function startServer() {
             item.method, item.functionF, item.functionG || null, item.root,
             item.error, JSON.stringify(item.iterations), item.converged, 
             item.message, JSON.stringify(item.params), label || item.label || null,
-            Date.now(), req.params.id
+            Date.now(), safeId
           ]
         );
       } else {
-        // Just update label
-        await pool.query("UPDATE calculations SET label = $1 WHERE id = $2", [sanitizeText(label, 120), sanitizeText(req.params.id, 80)]);
+        await pool.query("UPDATE calculations SET label = $1 WHERE id = $2", [sanitizeText(label, 120), safeId]);
       }
       res.status(200).json({ success: true });
     } catch (err) {
@@ -237,7 +280,7 @@ async function startServer() {
   app.delete("/api/history/:id", async (req, res) => {
     if (!pool || !process.env.DATABASE_URL) return res.status(200).end();
     try {
-      await pool.query("DELETE FROM calculations WHERE id = $1", [req.params.id]);
+      await pool.query("DELETE FROM calculations WHERE id = $1", [sanitizeText(req.params.id, 80)]);
       res.status(200).json({ success: true });
     } catch (err) {
       console.error(err);
@@ -260,7 +303,7 @@ async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -272,9 +315,33 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  const host = "0.0.0.0";
+  const maxPortAttempts = 10;
+
+  const listenOnPort = (port: number, attemptsLeft: number): void => {
+    const server = app.listen(port, host, () => {
+      const address = server.address() as AddressInfo | null;
+      const activePort = address?.port ?? port;
+      if (activePort !== preferredPort) {
+        console.warn(`Port ${preferredPort} was busy. Server started on http://localhost:${activePort}`);
+      } else {
+        console.log(`Server running on http://localhost:${activePort}`);
+      }
+    });
+
+    server.on("error", (error: NodeJS.ErrnoException) => {
+      if (error.code === "EADDRINUSE" && attemptsLeft > 0) {
+        const nextPort = port + 1;
+        console.warn(`Port ${port} is already in use. Retrying on ${nextPort}...`);
+        listenOnPort(nextPort, attemptsLeft - 1);
+        return;
+      }
+
+      throw error;
+    });
+  };
+
+  listenOnPort(preferredPort, maxPortAttempts);
 }
 
 startServer();

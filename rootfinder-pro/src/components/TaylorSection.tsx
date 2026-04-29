@@ -10,27 +10,7 @@ import { MathEvaluator } from '@/lib/mathEvaluator';
 import { TAYLOR_HISTORY_KEY, TAYLOR_HISTORY_UPDATED_EVENT } from '@/lib/historyKeys';
 import { Sigma, FunctionSquare, Calculator, LineChart, History, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-
-type TaylorTerm = {
-  order: number;
-  derivativeExpression: string;
-  derivativeValue: number;
-  factorial: number;
-  coefficient: number;
-  termExpression: string;
-};
-
-type TaylorResult = {
-  terms: TaylorTerm[];
-  polynomial: string;
-  approximation: number;
-  exactValue: number;
-  absoluteError: number;
-  relativeError: number;
-  center: number;
-  order: number;
-  evaluateAt: number;
-};
+import { buildTaylorResult, TaylorResult } from '@/lib/taylor';
 
 type TaylorHistoryItem = TaylorResult & {
   id: string;
@@ -38,69 +18,6 @@ type TaylorHistoryItem = TaylorResult & {
   fx: string;
   label?: string;
 };
-
-function factorial(n: number) {
-  let result = 1;
-  for (let i = 2; i <= n; i++) result *= i;
-  return result;
-}
-
-function formatNumber(value: number) {
-  return Number(value.toFixed(10)).toString();
-}
-
-function buildTaylorResult(fx: string, center: string, order: string, evaluateAt: string): TaylorResult {
-  const a = parseFloat(center);
-  const n = parseInt(order);
-  const x = parseFloat(evaluateAt);
-
-  if (!fx.trim()) throw new Error('Debes ingresar una función');
-  if (!MathEvaluator.isValid(fx)) throw new Error('La función ingresada no es válida');
-  if (Number.isNaN(a)) throw new Error('El centro a debe ser numérico');
-  if (Number.isNaN(n) || n < 0) throw new Error('El orden debe ser un entero no negativo');
-  if (Number.isNaN(x)) throw new Error('El punto de evaluación debe ser numérico');
-
-  const terms: TaylorTerm[] = [];
-  const polynomialTerms: string[] = [];
-  let approximation = 0;
-
-  for (let k = 0; k <= n; k++) {
-    const derivativeExpression = MathEvaluator.getNthDerivativeExpression(fx, k);
-    const derivativeValue = MathEvaluator.evaluateNthDerivative(fx, k, { x: a });
-    const fact = factorial(k);
-    const coefficient = derivativeValue / fact;
-    const centeredTerm = k === 0 ? '1' : k === 1 ? `(x - ${formatNumber(a)})` : `(x - ${formatNumber(a)})^${k}`;
-    const termExpression = k === 0 ? formatNumber(derivativeValue) : `${formatNumber(coefficient)} * ${centeredTerm}`;
-
-    terms.push({
-      order: k,
-      derivativeExpression,
-      derivativeValue,
-      factorial: fact,
-      coefficient,
-      termExpression,
-    });
-
-    polynomialTerms.push(termExpression);
-    approximation += coefficient * Math.pow(x - a, k);
-  }
-
-  const exactValue = MathEvaluator.evaluate(fx, x);
-  const absoluteError = Math.abs(exactValue - approximation);
-  const relativeError = exactValue !== 0 ? (absoluteError / Math.abs(exactValue)) * 100 : 0;
-
-  return {
-    terms,
-    polynomial: polynomialTerms.join(' + '),
-    approximation,
-    exactValue,
-    absoluteError,
-    relativeError,
-    center: a,
-    order: n,
-    evaluateAt: x,
-  };
-}
 
 export function TaylorSection() {
   const [fx, setFx] = useState('exp(x)');

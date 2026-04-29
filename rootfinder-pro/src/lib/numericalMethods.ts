@@ -129,7 +129,15 @@ export class NumericalMethods {
     let fa = MathEvaluator.evaluate(f, a);
     let fb = MathEvaluator.evaluate(f, b);
 
-    if (fa * fb >= 0) {
+    if (Math.abs(fa) < 1e-15) {
+      return this.successResult('bisection', f, a, [], true, params);
+    }
+
+    if (Math.abs(fb) < 1e-15) {
+      return this.successResult('bisection', f, b, [], true, params);
+    }
+
+    if (fa * fb > 0) {
       return this.errorResult('bisection', f, 'No hay cambio de signo en el intervalo [a, b]', params);
     }
 
@@ -184,7 +192,15 @@ export class NumericalMethods {
     let fa = MathEvaluator.evaluate(f, a);
     let fb = MathEvaluator.evaluate(f, b);
 
-    if (fa * fb >= 0) {
+    if (Math.abs(fa) < 1e-15) {
+      return this.successResult('false-position', f, a, [], true, params);
+    }
+
+    if (Math.abs(fb) < 1e-15) {
+      return this.successResult('false-position', f, b, [], true, params);
+    }
+
+    if (fa * fb > 0) {
       return this.errorResult('false-position', f, 'No hay cambio de signo en el intervalo [a, b]', params);
     }
 
@@ -246,6 +262,7 @@ export class NumericalMethods {
       }
 
       const xiNext = xi - fxi / df;
+      const fxiNext = MathEvaluator.evaluate(f, xiNext);
       const { ea, er } = this.calculateError(xiNext, xi);
 
       iterations.push({
@@ -258,7 +275,7 @@ export class NumericalMethods {
         er: er.toFixed(6) + '%'
       });
 
-      if (Math.abs(fxi) < 1e-15 || ea < tol) {
+      if (Math.abs(fxiNext) < 1e-15 || ea < tol) {
         xi = xiNext;
         converged = true;
         break;
@@ -291,6 +308,7 @@ export class NumericalMethods {
       }
 
       const xi_next = xi - (fxi * (xi_prev - xi)) / (fxi_prev - fxi);
+      const fxiNext = MathEvaluator.evaluate(f, xi_next);
       const { ea, er } = this.calculateError(xi_next, xi);
 
       iterations.push({
@@ -304,7 +322,7 @@ export class NumericalMethods {
         er: er.toFixed(6) + '%'
       });
 
-      if (Math.abs(fxi) < 1e-15 || ea < tol) {
+      if (Math.abs(fxiNext) < 1e-15 || ea < tol) {
         xi = xi_next;
         converged = true;
         break;
@@ -458,6 +476,9 @@ export class NumericalMethods {
       const deltaY = (j21 * fx1 - j11 * fx2) / det;
       const xNext = x + deltaX;
       const yNext = y + deltaY;
+      const nextScope = { x: xNext, y: yNext };
+      const nextF1 = MathEvaluator.evaluateWithScope(f1, nextScope);
+      const nextF2 = MathEvaluator.evaluateWithScope(f2, nextScope);
       const ea = Math.max(Math.abs(deltaX), Math.abs(deltaY));
       const denom = Math.max(Math.abs(xNext), Math.abs(yNext), 1);
       const er = (ea / denom) * 100;
@@ -487,7 +508,7 @@ export class NumericalMethods {
         return this.systemErrorResult('La iteración produjo valores no finitos', params, f1, f2, iterations);
       }
 
-      if (ea < tol || Math.max(Math.abs(fx1), Math.abs(fx2)) < 1e-15) {
+      if (ea < tol || Math.max(Math.abs(nextF1), Math.abs(nextF2)) < 1e-15) {
         converged = true;
         break;
       }

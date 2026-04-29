@@ -531,6 +531,7 @@ export function MethodsSection({
             </div>
 
             <Button
+              id="calculate-root-button"
               onClick={handleCalculate}
               className="w-full py-8 text-xl font-bold shadow-xl hover:scale-[1.01] transition-transform bg-primary hover:bg-primary/85 text-primary-foreground"
             >

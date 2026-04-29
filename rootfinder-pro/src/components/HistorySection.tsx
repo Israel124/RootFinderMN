@@ -6,8 +6,8 @@ import { Input } from '@/components/ui/input';
 import { CalculationResult } from '@/types';
 import { Trash2, Download, ExternalLink, FileSpreadsheet, FileText, Edit2, Check, X } from 'lucide-react';
 import { format } from 'date-fns';
-import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
+import { buildCsvContent, downloadTextFile } from '@/lib/exportUtils';
 
 interface HistorySectionProps {
   history: CalculationResult[];
@@ -36,9 +36,10 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate }:
     setEditingId(null);
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (history.length === 0) return toast.error('No hay historial para exportar');
-    
+
+    const XLSX = await import('xlsx');
     const data = history.map(item => ({
       Fecha: format(item.timestamp, 'dd/MM/yyyy HH:mm:ss'),
       Metodo: item.method,
@@ -63,23 +64,15 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate }:
     const rows = history.map(item => [
       format(item.timestamp, 'dd/MM/yyyy HH:mm:ss'),
       item.method,
-      `"${item.functionF}"`,
+      item.functionF,
       item.root,
       item.error,
       item.iterations.length,
       item.converged ? 'Sí' : 'No'
     ]);
 
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", "historial_raices.csv");
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = buildCsvContent(headers, rows);
+    downloadTextFile(csvContent, 'historial_raices.csv', 'text/csv;charset=utf-8;');
     toast.success('Archivo CSV exportado');
   };
 
@@ -172,7 +165,7 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate }:
                       {item.functionF}
                     </TableCell>
                     <TableCell className="font-mono text-xs text-secondary font-bold">
-                      {item.root?.toFixed(6) || 'N/A'}
+                      {item.root !== null ? item.root.toFixed(6) : 'N/A'}
                     </TableCell>
                     <TableCell>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { ChevronDown, CircleDot } from 'lucide-react';
+import { AppTab } from '@/types';
 
 interface NavbarProps {
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
+  activeTab: AppTab;
+  setActiveTab: (tab: AppTab) => void;
 }
 
 const moduleTabs = [
@@ -13,28 +14,28 @@ const moduleTabs = [
     step: '1',
     title: 'Aproximaciones Taylor',
     subtitle: 'Series y error de truncamiento',
-    status: 'active',
+    color: 'emerald',
   },
   {
     id: 'resolution',
     step: '2',
     title: 'Métodos de Resolución',
     subtitle: 'Ecuaciones no lineales',
-    status: 'active',
+    color: 'cyan',
   },
   {
-    id: 'polynomials',
+    id: 'polynomial',
     step: '3',
-    title: 'Raíces de Polinomios',
+    title: 'Raíces Polinómicas',
     subtitle: 'Müller · Bairstow · Horner',
-    status: 'active',
+    color: 'amber',
   },
   {
     id: 'systems',
     step: '4',
     title: 'Newton-Raphson Sistemas',
     subtitle: 'Ecuaciones no lineales múltiples',
-    status: 'active',
+    color: 'rose',
   },
 ] as const;
 
@@ -49,7 +50,29 @@ const resolutionSections = [
 export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const activeModule = activeTab === 'systems' ? 'systems' : activeTab === 'taylor' ? 'taylor' : 'resolution';
+  const activeModule =
+    activeTab === 'systems'
+      ? 'systems'
+      : activeTab === 'taylor'
+      ? 'taylor'
+      : activeTab === 'polynomial'
+      ? 'polynomial'
+      : 'resolution';
+
+  const tabColorClass = (tabId: string) => {
+    switch (tabId) {
+      case 'taylor':
+        return 'text-emerald-400 border-emerald-300/25 bg-emerald-300/8';
+      case 'resolution':
+        return 'text-cyan-400 border-cyan-300/25 bg-cyan-300/8';
+      case 'polynomial':
+        return 'text-amber-400 border-amber-300/25 bg-amber-300/8';
+      case 'systems':
+        return 'text-rose-400 border-rose-300/25 bg-rose-300/8';
+      default:
+        return 'text-primary border-primary/25 bg-primary/8';
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -68,50 +91,49 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
   return (
     <nav
       ref={menuRef}
+      aria-label="Navegacion principal de modulos"
       className="mb-8 rounded-[1.8rem] border border-primary/10 bg-card/80 px-3 py-3 shadow-xl backdrop-blur-xl"
     >
-      <div className="grid gap-2 xl:grid-cols-4">
+      <div className="grid gap-2 xl:grid-cols-3">
         {moduleTabs.map((tab) => {
           const isResolution = tab.id === 'resolution';
-          const isSystems = tab.id === 'systems';
-          const isTaylor = tab.id === 'taylor';
           const isSelected = tab.id === activeModule;
+          const isSelectedTabStyle = isSelected ? tabColorClass(tab.id) : 'border-transparent bg-background/35 opacity-80';
+          const dotStyle = isSelected ? tabColorClass(tab.id) : 'text-slate-400/60';
 
           return (
             <div key={tab.id}>
               <button
                 type="button"
                 onClick={() => {
-                  if (isResolution) setMenuOpen((open) => !open);
-                  if (isTaylor) {
-                    setActiveTab('taylor');
-                    setMenuOpen(false);
+                  if (isResolution) {
+                    setMenuOpen((open) => !open);
+                    return;
                   }
-                  if (isSystems) {
-                    setActiveTab('systems');
-                    setMenuOpen(false);
-                  }
+                  setActiveTab(tab.id);
+                  setMenuOpen(false);
                 }}
                 className={cn(
-                  'flex w-full items-start gap-3 rounded-[1.4rem] border px-4 py-3 text-left transition-all',
-                  isSelected
-                    ? 'border-primary/25 bg-primary/8 shadow-md shadow-primary/10'
-                    : 'border-transparent bg-background/35 opacity-80'
+                  'flex w-full items-start gap-3 rounded-[1.4rem] border px-4 py-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
+                  isSelected ? isSelectedTabStyle : 'border-transparent bg-background/35 opacity-80'
                 )}
               >
-                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
+                <div className={cn(
+                  'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                  isSelected ? tabColorClass(tab.id) : 'bg-muted text-muted-foreground'
+                )}>
                   {tab.step}
                 </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-semibold text-foreground">{tab.title}</p>
-                    <CircleDot className="h-3 w-3 shrink-0 fill-emerald-400 text-emerald-400" />
+                    <CircleDot className={cn('h-3 w-3 shrink-0', dotStyle)} aria-hidden="true" />
                     {isResolution && (
                       <ChevronDown
                         className={cn(
-                          'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
-                          menuOpen && 'rotate-180 text-primary'
+                          'h-4 w-4 shrink-0 transition-transform',
+                          menuOpen ? 'rotate-180 text-cyan-300' : 'text-muted-foreground'
                         )}
                       />
                     )}

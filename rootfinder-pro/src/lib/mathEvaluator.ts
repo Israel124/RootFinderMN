@@ -1,31 +1,47 @@
 import * as math from 'mathjs';
 
 export class MathEvaluator {
+  private static readonly compiledExpressionCache = new Map<string, math.EvalFunction>();
+  private static readonly derivativeNodeCache = new Map<string, math.MathNode>();
+
   private static getDerivativeNode(expression: string, variable: string, order = 1) {
     const processed = this.preprocess(expression);
+    const cacheKey = `${processed}::${variable}::${order}`;
+    const cached = this.derivativeNodeCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     let node = math.parse(processed);
 
     for (let i = 0; i < order; i++) {
       node = math.derivative(node, variable);
     }
 
+    this.derivativeNodeCache.set(cacheKey, node);
     return node;
   }
 
   private static preprocess(expression: string): string {
-    let expr = expression.toLowerCase();
-    
-    // Replace 'sen' with 'sin'
+    const normalized = expression.trim();
+    let expr = normalized.toLowerCase();
+
     expr = expr.replace(/\bsen\b/g, 'sin');
-    
-    // Replace 'ln' with 'log' (natural log in mathjs)
     expr = expr.replace(/\bln\b/g, 'log');
-    
-    // Replace 'e^x' with 'exp(x)' or just ensure 'e' is handled
-    // mathjs handles e^x fine, but let's be explicit if needed
-    // Actually mathjs is very robust.
-    
+
     return expr;
+  }
+
+  private static getCompiledExpression(expression: string) {
+    const processed = this.preprocess(expression);
+    const cached = this.compiledExpressionCache.get(processed);
+    if (cached) {
+      return cached;
+    }
+
+    const compiled = math.compile(processed);
+    this.compiledExpressionCache.set(processed, compiled);
+    return compiled;
   }
 
   static evaluate(expression: string, x: number): number {
@@ -34,17 +50,15 @@ export class MathEvaluator {
 
   static evaluateWithScope(expression: string, scope: Record<string, number>): number {
     try {
-      const processed = this.preprocess(expression);
-      const result = math.evaluate(processed, scope);
-      
+      const result = this.getCompiledExpression(expression).evaluate(scope);
+
       if (typeof result !== 'number' || !isFinite(result)) {
         throw new Error('Resultado no finito');
       }
-      
+
       return result;
-    } catch (error) {
-      console.error('Error evaluating expression:', error);
-      throw error;
+    } catch {
+      throw new Error('No se pudo evaluar la expresion');
     }
   }
 
@@ -58,18 +72,19 @@ export class MathEvaluator {
     scope: Record<string, number>
   ): number {
     try {
-      const processed = this.preprocess(expression);
-      const derived = math.derivative(processed, variable);
-      const result = derived.evaluate(scope);
-      
+      const result = this.getDerivativeNode(expression, variable).evaluate(scope);
+
       if (typeof result !== 'number' || !isFinite(result)) {
         throw new Error('Derivada no finita');
       }
       return result;
-    } catch (error) {
+    } catch {
       // Fallback to numerical derivative if symbolic fails
       const h = 1e-7;
       const pivot = scope[variable];
+      if (typeof pivot !== 'number' || Number.isNaN(pivot)) {
+        throw new Error('Variable no encontrada en el alcance');
+      }
       const plusScope = { ...scope, [variable]: pivot + h };
       const minusScope = { ...scope, [variable]: pivot - h };
       const f_plus = this.evaluateWithScope(expression, plusScope);
@@ -138,10 +153,8 @@ export class MathEvaluator {
 
   static isValid(expression: string): boolean {
     try {
-      const processed = this.preprocess(expression);
-      math.parse(processed);
-      // Test with a value
-      this.evaluate(processed, 1);
+      this.getCompiledExpression(expression);
+      this.evaluate(expression, 1);
       return true;
     } catch {
       return false;

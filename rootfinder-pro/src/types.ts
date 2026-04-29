@@ -1,5 +1,15 @@
 export type MethodType = 'bisection' | 'false-position' | 'newton-raphson' | 'secant' | 'fixed-point';
 
+export type AppTab =
+  | 'verification'
+  | 'taylor'
+  | 'methods'
+  | 'polynomial'
+  | 'results'
+  | 'history'
+  | 'graph'
+  | 'systems';
+
 export interface FixedPointCandidate {
   expression: string;
   lambda: number;

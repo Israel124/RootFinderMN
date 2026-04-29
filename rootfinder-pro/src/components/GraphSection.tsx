@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Maximize2, Minimize2, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { detectZeroCrossings, normalizeRange, PlotRange } from '@/lib/graphUtils';
 
 interface GraphSectionProps {
   f: string;
@@ -16,12 +17,13 @@ interface GraphSectionProps {
 export function GraphSection({ f, root }: GraphSectionProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fullCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [range, setRange] = useState({
+  const defaultRange: PlotRange = {
     xmin: -10,
     xmax: 10,
     ymin: -10,
     ymax: 10
-  });
+  };
+  const [range, setRange] = useState<PlotRange>(defaultRange);
   const [crossings, setCrossings] = useState<number[]>([]);
   const [mousePos, setMousePos] = useState<{ x: number; y: number; mathX: number; mathY: number } | null>(null);
 
@@ -34,7 +36,7 @@ export function GraphSection({ f, root }: GraphSectionProps) {
 
     const width = canvas.width;
     const height = canvas.height;
-    const { xmin, xmax, ymin, ymax } = range;
+    const { xmin, xmax, ymin, ymax } = normalizeRange(range, defaultRange);
 
     if (xmin >= xmax || ymin >= ymax) return;
 
@@ -87,8 +89,7 @@ export function GraphSection({ f, root }: GraphSectionProps) {
     
     const step = (xmax - xmin) / width;
     let first = true;
-    const detectedCrossings: number[] = [];
-    let prevY: number | null = null;
+    const samples: Array<{ x: number; y: number }> = [];
 
     for (let x = xmin; x <= xmax; x += step) {
       try {
@@ -106,19 +107,14 @@ export function GraphSection({ f, root }: GraphSectionProps) {
         } else {
           first = true;
         }
-
-        // Detect crossing
-        if (prevY !== null && prevY * y <= 0) {
-          detectedCrossings.push(x);
-        }
-        prevY = y;
+        samples.push({ x, y });
       } catch (e) {
         first = true;
       }
     }
     ctx.stroke();
     if (canvas === canvasRef.current) {
-      setCrossings(detectedCrossings);
+      setCrossings(detectZeroCrossings(samples));
     }
 
     // Draw Root
@@ -179,11 +175,11 @@ export function GraphSection({ f, root }: GraphSectionProps) {
   };
 
   const resetView = () => {
-    setRange({ xmin: -10, xmax: 10, ymin: -10, ymax: 10 });
+    setRange(defaultRange);
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-4 max-w-7xl mx-auto">
       <Card className="lg:col-span-3 overflow-hidden shadow-2xl border-primary/10 bg-card/50 backdrop-blur-sm">
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <div>
@@ -206,6 +202,7 @@ export function GraphSection({ f, root }: GraphSectionProps) {
                   variant="default" 
                   size="icon" 
                   className="bg-primary hover:bg-primary/80 text-primary-foreground"
+                  aria-label="Abrir grafica en vista ampliada"
                   onClick={() => setIsDialogOpen(true)}
                 >
                   <Maximize2 className="w-4 h-4" />
@@ -289,8 +286,9 @@ export function GraphSection({ f, root }: GraphSectionProps) {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label className="text-xs text-muted-foreground">X Min</Label>
+                <Label htmlFor="xmin-range" className="text-xs text-muted-foreground">X Min</Label>
                 <Input 
+                  id="xmin-range"
                   type="number" 
                   value={range.xmin} 
                   onChange={e => setRange({...range, xmin: parseFloat(e.target.value)})} 
@@ -298,8 +296,9 @@ export function GraphSection({ f, root }: GraphSectionProps) {
                 />
               </div>
               <div className="grid gap-2">
-                <Label className="text-xs text-muted-foreground">X Max</Label>
+                <Label htmlFor="xmax-range" className="text-xs text-muted-foreground">X Max</Label>
                 <Input 
+                  id="xmax-range"
                   type="number" 
                   value={range.xmax} 
                   onChange={e => setRange({...range, xmax: parseFloat(e.target.value)})} 
@@ -307,8 +306,9 @@ export function GraphSection({ f, root }: GraphSectionProps) {
                 />
               </div>
               <div className="grid gap-2">
-                <Label className="text-xs text-muted-foreground">Y Min</Label>
+                <Label htmlFor="ymin-range" className="text-xs text-muted-foreground">Y Min</Label>
                 <Input 
+                  id="ymin-range"
                   type="number" 
                   value={range.ymin} 
                   onChange={e => setRange({...range, ymin: parseFloat(e.target.value)})} 
@@ -316,8 +316,9 @@ export function GraphSection({ f, root }: GraphSectionProps) {
                 />
               </div>
               <div className="grid gap-2">
-                <Label className="text-xs text-muted-foreground">Y Max</Label>
+                <Label htmlFor="ymax-range" className="text-xs text-muted-foreground">Y Max</Label>
                 <Input 
+                  id="ymax-range"
                   type="number" 
                   value={range.ymax} 
                   onChange={e => setRange({...range, ymax: parseFloat(e.target.value)})} 
