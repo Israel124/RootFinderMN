@@ -27,11 +27,6 @@ const ALLOWED_METHODS = new Set([
   "newton-raphson",
   "secant",
   "fixed-point",
-  "muller",
-  "bairstow",
-  "horner",
-  "taylor",
-  "newton-raphson-system",
 ]);
 
 function sanitizeText(value: unknown, maxLength: number) {
@@ -87,34 +82,25 @@ function sanitizeCalculationPayload(input: any) {
 
   const method = sanitizeText(input.method, 40);
   if (!ALLOWED_METHODS.has(method)) {
-    throw new Error(`Método inválido: ${method}`);
-  }
-
-  // Ensure ID is a valid UUID or generate one if missing/invalid
-  let id = sanitizeText(input.id, 80);
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!id || !uuidRegex.test(id)) {
-    console.warn(`Invalid or missing UUID received: ${id}. Generating a new one.`);
-    // We can't easily generate UUID here without a library, but the frontend should send it.
-    // If it's missing, we'll let the DB fail or try to use what we have if it's at least a string.
+    throw new Error("Método inválido");
   }
 
   const iterations = sanitizeIterations(input.iterations);
   const params = sanitizeJsonRecord(input.params);
 
   return {
-    id,
+    id: sanitizeText(input.id, 80),
     timestamp: Number.isFinite(Number(input.timestamp)) ? Number(input.timestamp) : Date.now(),
     method,
-    functionF: sanitizeText(input.functionF || input.functionF1 || input.fx || "", 2000),
-    functionG: sanitizeText(input.functionG || input.functionF2 || "", 2000) || null,
-    root: input.root === null || input.root === undefined ? (input.solution?.x ?? null) : sanitizeNumber(input.root),
-    error: input.error === null || input.error === undefined ? null : sanitizeNumber(input.error),
+    functionF: sanitizeText(input.functionF, 1000),
+    functionG: sanitizeText(input.functionG, 1000) || null,
+    root: input.root === null ? null : sanitizeNumber(input.root),
+    error: input.error === null ? null : sanitizeNumber(input.error),
     iterations,
     converged: Boolean(input.converged),
-    message: sanitizeText(input.message, 1000),
+    message: sanitizeText(input.message, 500),
     params,
-    label: sanitizeText(input.label, 200) || null,
+    label: sanitizeText(input.label, 120) || null,
   };
 }
 

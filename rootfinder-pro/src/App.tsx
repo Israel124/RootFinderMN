@@ -473,17 +473,7 @@ export default function App() {
     if (p.x1 !== undefined) setX1(p.x1.toString());
     if (p.g1Value !== undefined) setG1(p.g1Value.toString());
     
-    // Determine tab based on method
-    if (result.method === 'taylor') {
-      setActiveTab('taylor');
-    } else if (result.method === 'newton-raphson-system') {
-      setActiveTab('systems');
-    } else if (['muller', 'bairstow', 'horner'].includes(result.method)) {
-      setActiveTab('polynomial');
-    } else {
-      setActiveTab('results');
-    }
-    
+    setActiveTab('results');
     toast.success('Datos cargados del historial');
   };
 
@@ -589,8 +579,8 @@ export default function App() {
                       <VerificationSection f={f} setF={setF} a={a} setA={setA} b={b} setB={setB} />
                     )}
                     {activeTab === 'taylor' && (
-                        <TaylorSection onResult={handleNewResult} />
-                      )}
+                      <TaylorSection />
+                    )}
                     {activeTab === 'methods' && (
                       <MethodsSection 
                         f={f} a={a} b={b} 
@@ -605,7 +595,7 @@ export default function App() {
                       />
                     )}
                     {activeTab === 'polynomial' && (
-                      <PolynomialSection onResult={handleNewResult} />
+                      <PolynomialSection />
                     )}
                     {activeTab === 'results' && (
                       <ResultsSection result={currentResult} />
@@ -623,8 +613,8 @@ export default function App() {
                       <GraphSection f={f} root={currentResult?.root || null} />
                     )}
                     {activeTab === 'systems' && (
-                        <NewtonSystemSection onResult={handleNewResult} />
-                      )}
+                      <NewtonSystemSection />
+                    )}
                   </Suspense>
                 </motion.div>
               </AnimatePresence>

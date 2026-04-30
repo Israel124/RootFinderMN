@@ -6,8 +6,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PolynomialMethods, PolynomialRootMethod, PolynomialRootResult } from '@/lib/polynomialMethods';
 
-import { CalculationResult } from '@/types';
-
 const methodLabel: Record<PolynomialRootMethod, string> = {
   muller: 'Müller',
   bairstow: 'Bairstow',
@@ -20,11 +18,7 @@ const methodDescription: Record<PolynomialRootMethod, string> = {
   horner: 'Evalúa el polinomio y su derivada simultáneamente para una raíz precisa con Newton.',
 };
 
-interface PolynomialSectionProps {
-  onResult?: (result: CalculationResult) => void;
-}
-
-export function PolynomialSection({ onResult }: PolynomialSectionProps) {
+export function PolynomialSection() {
   const [coefficients, setCoefficients] = useState('1, -3, 2');
   const [method, setMethod] = useState<PolynomialRootMethod>('muller');
   const [x0, setX0] = useState('0');
@@ -93,21 +87,6 @@ export function PolynomialSection({ onResult }: PolynomialSectionProps) {
 
       setResult(calculatedResult);
       setError(null);
-
-      if (onResult) {
-        onResult({
-          id: crypto.randomUUID(),
-          timestamp: Date.now(),
-          method: method as any,
-          functionF: coefficients,
-          root: calculatedResult.roots[0]?.real ?? null,
-          error: calculatedResult.error,
-          iterations: calculatedResult.iterations as any,
-          converged: calculatedResult.converged,
-          message: calculatedResult.message,
-          params: { coefficients, tol, maxIter, x0, x1, x2, r0, s0 }
-        });
-      }
     } catch (err: any) {
       setError(err?.message ?? 'Error desconocido al calcular las raíces');
       setResult(null);

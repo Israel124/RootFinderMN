@@ -12,8 +12,6 @@ import { Sigma, FunctionSquare, Calculator, LineChart, History, Pencil, Trash2 }
 import { toast } from 'sonner';
 import { buildTaylorResult, TaylorResult } from '@/lib/taylor';
 
-import { CalculationResult } from '@/types';
-
 type TaylorHistoryItem = TaylorResult & {
   id: string;
   timestamp: number;
@@ -21,11 +19,7 @@ type TaylorHistoryItem = TaylorResult & {
   label?: string;
 };
 
-interface TaylorSectionProps {
-  onResult?: (result: CalculationResult) => void;
-}
-
-export function TaylorSection({ onResult }: TaylorSectionProps) {
+export function TaylorSection() {
   const [fx, setFx] = useState('exp(x)');
   const [center, setCenter] = useState('0');
   const [order, setOrder] = useState('4');
@@ -184,40 +178,19 @@ export function TaylorSection({ onResult }: TaylorSectionProps) {
   const handleCalculate = () => {
     try {
       const calculation = buildTaylorResult(fx, center, order, evaluateAt);
-      const id = crypto.randomUUID();
-      const timestamp = Date.now();
-      const label = historyLabel.trim();
-
       setResult(calculation);
       setHistory((current) => [
         {
           ...calculation,
-          id,
-          timestamp,
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
           fx,
-          label,
+          label: historyLabel.trim(),
         },
         ...current,
       ].slice(0, 20));
       setHistoryLabel('');
-
-      if (onResult) {
-        onResult({
-          id,
-          timestamp,
-          method: 'taylor' as any,
-          functionF: fx,
-          root: calculation.approximation,
-          error: calculation.absoluteError,
-          iterations: calculation.terms as any,
-          converged: true,
-          message: 'Serie de Taylor calculada',
-          params: { center, order, evaluateAt },
-          label,
-        });
-      }
-
-      toast.success('Serie de Taylor calculada correctamente');
+      toast.success('Polinomio de Taylor calculado');
     } catch (error: any) {
       toast.error('Error: ' + error.message);
     }

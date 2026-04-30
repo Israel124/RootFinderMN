@@ -11,8 +11,7 @@ import { NumericalMethods } from '@/lib/numericalMethods';
 import { SYSTEM_HISTORY_KEY, SYSTEM_HISTORY_UPDATED_EVENT } from '@/lib/historyKeys';
 import { SystemCalculationResult } from '@/types';
 import { AlertCircle, CheckCircle2, FunctionSquare, Sigma, History, LineChart, Pencil, Trash2, Download } from 'lucide-react';
-import { CalculationResult, SystemCalculationResult } from '@/types';
-import { saveHistoryItem } from '@/lib/historyApi';
+import { toast } from 'sonner';
 
 type SystemHistoryItem = SystemCalculationResult & {
   id: string;
@@ -20,11 +19,7 @@ type SystemHistoryItem = SystemCalculationResult & {
   label?: string;
 };
 
-interface NewtonSystemSectionProps {
-  onResult?: (result: CalculationResult) => void;
-}
-
-export function NewtonSystemSection({ onResult }: NewtonSystemSectionProps) {
+export function NewtonSystemSection() {
   const [f1, setF1] = useState('x^2 + y^2 - 4');
   const [f2, setF2] = useState('x - y - 1');
   const [x0, setX0] = useState('1.5');
@@ -101,36 +96,16 @@ export function NewtonSystemSection({ onResult }: NewtonSystemSectionProps) {
       MathEvaluator.evaluateWithScope(f2, { x, y });
       const calculation = NumericalMethods.newtonRaphsonSystem2x2(f1, f2, x, y, tolerance, iterations);
       setResult(calculation);
-      const newHistoryItem: SystemHistoryItem = {
-        ...calculation,
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        label: historyLabel.trim(),
-      };
-
       setHistory((current) => [
-        newHistoryItem,
+        {
+          ...calculation,
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          label: historyLabel.trim(),
+        },
         ...current,
       ].slice(0, 15));
       setHistoryLabel('');
-
-      // Also save to global history API
-      if (onResult) {
-        onResult({
-          id: newHistoryItem.id,
-          timestamp: newHistoryItem.timestamp,
-          method: 'newton-raphson-system' as any,
-          functionF: f1,
-          functionG: f2,
-          root: calculation.solution?.x ?? null,
-          error: calculation.error,
-          iterations: calculation.iterations as any,
-          converged: calculation.converged,
-          message: calculation.message,
-          params: { x0, y0, tol, maxIter },
-          label: newHistoryItem.label
-        });
-      }
 
       if (calculation.converged) {
         toast.success('Sistema resuelto con Newton-Raphson');
