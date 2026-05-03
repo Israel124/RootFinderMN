@@ -5,7 +5,11 @@ import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
   loadEnv(mode, '.', '');
-  return {    base: '/RootFinderMN/',    plugins: [react(), tailwindcss()],
+  const base = process.env.VITE_BASE_PATH || '/';
+
+  return {
+    base,
+    plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),

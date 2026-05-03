@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { MathEvaluator } from '@/lib/mathEvaluator';
-import { TAYLOR_HISTORY_KEY, TAYLOR_HISTORY_UPDATED_EVENT } from '@/lib/historyKeys';
+import { LOAD_TAYLOR_HISTORY_EVENT, TAYLOR_HISTORY_KEY, TAYLOR_HISTORY_UPDATED_EVENT } from '@/lib/historyKeys';
 import { Sigma, FunctionSquare, Calculator, LineChart, History, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildTaylorResult, TaylorResult } from '@/lib/taylor';
@@ -38,6 +38,21 @@ export function TaylorSection() {
     } catch {
       setHistory([]);
     }
+  }, []);
+
+  useEffect(() => {
+    const handleExternalLoad = (event: Event) => {
+      const detail = (event as CustomEvent<TaylorHistoryItem>).detail;
+      if (!detail) return;
+      setFx(detail.fx);
+      setCenter(detail.center.toString());
+      setOrder(detail.order.toString());
+      setEvaluateAt(detail.evaluateAt.toString());
+      setResult(detail);
+    };
+
+    window.addEventListener(LOAD_TAYLOR_HISTORY_EVENT, handleExternalLoad as EventListener);
+    return () => window.removeEventListener(LOAD_TAYLOR_HISTORY_EVENT, handleExternalLoad as EventListener);
   }, []);
 
   useEffect(() => {

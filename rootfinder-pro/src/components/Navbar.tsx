@@ -6,6 +6,8 @@ import { AppTab } from '@/types';
 interface NavbarProps {
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
+  user?: any;
+  onLogout?: () => void;
 }
 
 const moduleTabs = [
@@ -47,7 +49,7 @@ const resolutionSections = [
   { id: 'history', label: 'Historial' },
 ] as const;
 
-export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
+export function Navbar({ activeTab, setActiveTab, user, onLogout }: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const activeModule =
@@ -179,6 +181,27 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
               </button>
             ))}
           </div>
+        </div>
+      )}
+      
+      {user && (
+        <div className="mt-4 flex items-center justify-between rounded-[1.2rem] border border-primary/10 bg-background/55 p-3">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
+              <span className="text-sm font-semibold text-primary">
+                {user.email?.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">{user.email}</p>
+            </div>
+          </div>
+          <button
+            onClick={onLogout}
+            className="rounded-lg px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+          >
+            Cerrar sesión
+          </button>
         </div>
       )}
     </nav>

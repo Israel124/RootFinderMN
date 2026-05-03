@@ -10,6 +10,8 @@ export type AppTab =
   | 'graph'
   | 'systems';
 
+export type AppAccessTab = 'verification' | 'taylor' | 'methods' | 'polynomial';
+
 export interface FixedPointCandidate {
   expression: string;
   lambda: number;

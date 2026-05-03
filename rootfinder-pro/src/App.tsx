@@ -10,13 +10,17 @@ import { VerificationSection } from './components/VerificationSection';
 import { MethodsSection } from './components/MethodsSection';
 import { PolynomialSection } from './components/PolynomialSection';
 import { ResultsSection } from './components/ResultsSection';
+import { Login } from './components/Login';
+import { Register } from './components/Register';
 import {
+  POLYNOMIAL_HISTORY_KEY,
+  POLYNOMIAL_HISTORY_UPDATED_EVENT,
   SYSTEM_HISTORY_KEY,
   SYSTEM_HISTORY_UPDATED_EVENT,
   TAYLOR_HISTORY_KEY,
   TAYLOR_HISTORY_UPDATED_EVENT,
 } from './lib/historyKeys';
-import { AppTab, CalculationResult, MethodType } from './types';
+import { AppAccessTab, AppTab, CalculationResult, MethodType } from './types';
 import { Toaster } from '@/components/ui/sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -34,6 +38,7 @@ import {
   LoaderCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { clearHistoryItems, deleteHistoryItem, fetchHistory, saveHistoryItem, updateHistoryLabel } from '@/lib/historyApi';
 
@@ -78,11 +83,12 @@ const universityImage =
   'https://assets.agris.fao.org/public/styles/fao_ui_banner/public/images/2024-02/420049206_758805662963701_6273589032551930458_n.jpeg?itok=32mHwNjl';
 
 interface LandingHeroProps {
-  onOpenApp: (tab?: 'taylor' | 'verification' | 'methods' | 'polynomial') => void;
+  onOpenApp: (tab?: AppAccessTab) => void;
   onOpenMethods: () => void;
+  onLogin: () => void;
 }
 
-function LandingHero({ onOpenApp, onOpenMethods }: LandingHeroProps) {
+function LandingHero({ onOpenApp, onOpenMethods, onLogin }: LandingHeroProps) {
   const [pointer, setPointer] = useState({ x: 50, y: 50 });
 
   const handlePointerMove = (event: { currentTarget: HTMLElement; clientX: number; clientY: number }) => {
@@ -146,14 +152,23 @@ function LandingHero({ onOpenApp, onOpenMethods }: LandingHeroProps) {
               <p className="text-xs text-emerald-100/70">Numerical methods lab</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => onOpenApp('taylor')}
-            className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-white backdrop-blur-md transition hover:border-amber-300/60 hover:bg-amber-300 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
-          >
-            <Calculator className="h-4 w-4" />
-            Abrir app
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onLogin}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-white backdrop-blur-md transition hover:border-blue-300/60 hover:bg-blue-300 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+            >
+              Iniciar Sesión
+            </button>
+            <button
+              type="button"
+              onClick={() => onOpenApp('taylor')}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-white backdrop-blur-md transition hover:border-amber-300/60 hover:bg-amber-300 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+            >
+              <Calculator className="h-4 w-4" />
+              Abrir app
+            </button>
+          </div>
         </nav>
 
         <div className="grid items-end gap-10 pb-10 pt-20 lg:grid-cols-[minmax(0,1.05fr)_28rem]">
@@ -233,6 +248,9 @@ function LandingHero({ onOpenApp, onOpenMethods }: LandingHeroProps) {
 export type AppPage = 'landing' | 'app';
 
 export default function App() {
+  const [user, setUser] = useState<any>(null);
+  const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
+
   const getInitialPage = (): AppPage => {
     if (typeof window === 'undefined') return 'landing';
     return new URLSearchParams(window.location.search).get('page') === 'app' ? 'app' : 'landing';
@@ -240,6 +258,7 @@ export default function App() {
 
   const [page, setPage] = useState<AppPage>(getInitialPage());
   const [activeTab, setActiveTab] = useState<AppTab>('taylor');
+  const [pendingTab, setPendingTab] = useState<'verification' | 'taylor' | 'methods' | 'polynomial'>('taylor');
   
   // Input States
   const [f, setF] = useState('x^2 - 4');
@@ -260,7 +279,45 @@ export default function App() {
   const [historyStatus, setHistoryStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [systemHistoryCount, setSystemHistoryCount] = useState(0);
   const [taylorHistoryCount, setTaylorHistoryCount] = useState(0);
+  const [polynomialHistoryCount, setPolynomialHistoryCount] = useState(0);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Auth check
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      // TODO: Validate token with server
+      setUser({ email: 'user@example.com' }); // Placeholder
+    }
+  }, []);
+
+  const handleLogin = (token: string, userData: any) => {
+    setUser(userData);
+    navigateToApp(pendingTab);
+  };
+
+  const handleRegister = (token: string, userData: any) => {
+    setUser(userData);
+    navigateToApp(pendingTab);
+  };
+
+  const requestAppAccess = (tab: AppAccessTab = 'taylor') => {
+    if (!user) {
+      setPendingTab(tab);
+      setAuthMode('login');
+      return;
+    }
+
+    navigateToApp(tab);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+    setAuthMode(null);
+    setPage('landing');
+  };
 
   const loadSystemHistoryCount = () => {
     try {
@@ -279,6 +336,16 @@ export default function App() {
       setTaylorHistoryCount(Array.isArray(items) ? items.length : 0);
     } catch {
       setTaylorHistoryCount(0);
+    }
+  };
+
+  const loadPolynomialHistoryCount = () => {
+    try {
+      const raw = window.localStorage.getItem(POLYNOMIAL_HISTORY_KEY);
+      const items = raw ? JSON.parse(raw) : [];
+      setPolynomialHistoryCount(Array.isArray(items) ? items.length : 0);
+    } catch {
+      setPolynomialHistoryCount(0);
     }
   };
 
@@ -345,25 +412,30 @@ export default function App() {
   useEffect(() => {
     loadSystemHistoryCount();
     loadTaylorHistoryCount();
+    loadPolynomialHistoryCount();
 
     const refreshSystem = () => loadSystemHistoryCount();
     const refreshTaylor = () => loadTaylorHistoryCount();
+    const refreshPolynomial = () => loadPolynomialHistoryCount();
     const refreshAll = () => {
       loadSystemHistoryCount();
       loadTaylorHistoryCount();
+      loadPolynomialHistoryCount();
     };
     window.addEventListener(SYSTEM_HISTORY_UPDATED_EVENT, refreshSystem);
     window.addEventListener(TAYLOR_HISTORY_UPDATED_EVENT, refreshTaylor);
+    window.addEventListener(POLYNOMIAL_HISTORY_UPDATED_EVENT, refreshPolynomial);
     window.addEventListener('storage', refreshAll);
 
     return () => {
       window.removeEventListener(SYSTEM_HISTORY_UPDATED_EVENT, refreshSystem);
       window.removeEventListener(TAYLOR_HISTORY_UPDATED_EVENT, refreshTaylor);
+      window.removeEventListener(POLYNOMIAL_HISTORY_UPDATED_EVENT, refreshPolynomial);
       window.removeEventListener('storage', refreshAll);
     };
   }, []);
 
-  const navigateToApp = (tab: 'taylor' | 'verification' | 'methods' | 'polynomial' = 'taylor') => {
+  const navigateToApp = (tab: AppAccessTab = 'taylor') => {
     setPage('app');
     setActiveTab(tab);
     if (typeof window !== 'undefined') {
@@ -481,10 +553,31 @@ export default function App() {
 
   return (
     <div className={cn('min-h-screen bg-background text-foreground font-sans selection:bg-primary/20', activeModuleMetadata.themeClass)}>
-      {page === 'landing' ? (
+      {!user ? (
+        authMode ? (
+          authMode === 'login' ? (
+            <Login
+              onLogin={handleLogin}
+              onSwitchToRegister={() => setAuthMode('register')}
+            />
+          ) : (
+            <Register
+              onRegister={handleRegister}
+              onSwitchToLogin={() => setAuthMode('login')}
+            />
+          )
+        ) : (
+          <LandingHero
+            onOpenApp={(tab = 'verification') => requestAppAccess(tab)}
+            onOpenMethods={() => requestAppAccess('methods')}
+            onLogin={() => setAuthMode('login')}
+          />
+        )
+      ) : page === 'landing' ? (
         <LandingHero
-          onOpenApp={(tab = 'verification') => navigateToApp(tab)}
-          onOpenMethods={() => navigateToApp('methods')}
+          onOpenApp={(tab = 'verification') => requestAppAccess(tab)}
+          onOpenMethods={() => requestAppAccess('methods')}
+          onLogin={() => setAuthMode('login')}
         />
       ) : (
         <>
@@ -542,9 +635,15 @@ export default function App() {
 
           <div className="grid gap-4">
             <div className="rounded-[2rem] border border-primary/10 bg-card/55 p-6 shadow-xl backdrop-blur-xl">
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/60">Estado de aprendizaje</p>
-              <p className="mt-3 text-3xl font-black">{history.length + systemHistoryCount + taylorHistoryCount}</p>
-              <p className="mt-2 text-sm text-muted-foreground">Registros totales disponibles para comparar y validar.</p>
+              <button
+                type="button"
+                onClick={() => setHistoryModalOpen(true)}
+                className="w-full text-left"
+              >
+                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/60">Estado de aprendizaje</p>
+                <p className="mt-3 text-3xl font-black">{history.length + systemHistoryCount + taylorHistoryCount + polynomialHistoryCount}</p>
+                <p className="mt-2 text-sm text-muted-foreground">Toca aqui para abrir el historial completo por modulos.</p>
+              </button>
             </div>
             <div className="rounded-[2rem] border border-primary/10 bg-card/55 p-6 shadow-xl backdrop-blur-xl">
               <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/60">Siguiente paso</p>
@@ -554,7 +653,7 @@ export default function App() {
               </div>
             </section>
 
-            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
+            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={handleLogout} />
 
             <div className="relative min-h-[600px]">
               <AnimatePresence mode="wait">
@@ -607,6 +706,7 @@ export default function App() {
                         onClear={handleClearHistory}
                         onLoad={handleLoadHistory}
                         onUpdate={handleUpdateHistory}
+                        onNavigateToTab={setActiveTab}
                       />
                     )}
                     {activeTab === 'graph' && (
@@ -639,6 +739,35 @@ export default function App() {
               )}
             </AnimatePresence>
           </main>
+
+          <DialogContent
+            isOpen={historyModalOpen}
+            onClose={() => setHistoryModalOpen(false)}
+            className="max-w-[95vw] w-full h-[90vh] p-0 overflow-hidden bg-background border-primary/20"
+          >
+            <DialogHeader className="border-b border-primary/10 px-6 py-4">
+              <DialogTitle>Historial completo de la app</DialogTitle>
+              <DialogDescription>
+                Registros separados por modulos en una ventana emergente.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="h-[calc(90vh-5.5rem)] overflow-auto p-4">
+              <HistorySection
+                history={history}
+                onDelete={handleDeleteHistory}
+                onClear={handleClearHistory}
+                onLoad={(item) => {
+                  handleLoadHistory(item);
+                  setHistoryModalOpen(false);
+                }}
+                onUpdate={handleUpdateHistory}
+                onNavigateToTab={(tab) => {
+                  setActiveTab(tab);
+                  setHistoryModalOpen(false);
+                }}
+              />
+            </div>
+          </DialogContent>
 
           <footer className="border-t border-primary/10 bg-card/50 py-12 mt-12 backdrop-blur-md">
             <div className="max-w-7xl mx-auto px-4 text-center space-y-4">
