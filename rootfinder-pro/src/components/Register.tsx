@@ -102,9 +102,7 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
         toast.error(message || 'Error al registrar');
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Error de conexion';
-      console.error('Register error:', error);
-      toast.error(message);
+      toast.error('Error de conexion con el servidor');
     } finally {
       setLoading(false);
     }
@@ -133,39 +131,12 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
         const message = typeof data === 'object' && data !== null && 'error' in data ? (data as any).error : String(data || response.statusText);
         toast.error(message || 'Error al verificar');
       }
-    } const handleSubmit = async (e: { preventDefault: () => void }) => {
-  e.preventDefault();
-
-  if (password !== confirmPassword) {
-    toast.error('Las contrasenas no coinciden');
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    const response = await fetch(apiUrl('/api/register'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const text = await response.text();
-    let data: any = null;
-    try { data = JSON.parse(text); } catch { data = null; }
-
-    if (response.ok) {
-      setVerificationMode(true);
-      toast.success('Registro creado. Revisa tu correo para verificar la cuenta.');
-    } else {
-      const message = data?.error || data?.message || 'Error al registrar';
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error de conexion';
+      console.error('Verify error:', error);
       toast.error(message);
-    }
-  } catch (error: unknown) {
-    toast.error('Error de conexion con el servidor');
-  } finally {
-    setLoading(false);
-  }
+    } finally {
+      setLoading(false);
     }
   };
 
