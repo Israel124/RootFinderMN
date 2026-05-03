@@ -1,0 +1,27 @@
+[
+  {
+    "id": "1777751096489",
+    "email": "test-observ2@example.com",
+    "password": "$2b$10$BuFuLqwRpCg0kdddZLEOyewPBwMHQ.WsJVli4VbWK9HeoeVU5tZdW",
+    "createdAt": 1777751096489
+  },
+  {
+    "id": "1777751317035",
+    "email": "ie481007@gmail.com",
+    "password": "$2b$10$hKdntkZED6hGlfl.7UQfn.7XFjcKV.da3X77lCKC.XM670ebmB6wS",
+    "createdAt": 1777751317035
+  },
+  {
+    "id": "1777752593384",
+    "email": "israel.espinoza291@hotmail.com",
+    "password": "$2b$10$6HR617Zg/drUM5YwRcp2MurZAt4GWGEAN3A8iNR6Jx/KDFioA2wS2",
+    "createdAt": 1777752593384
+  },
+  {
+    "id": "1777788140895",
+    "email": "espinozaisraeldejesus@gmail.com",
+    "password": "$2b$10$4C2DsdIuRxpK1Y7/l8Lw4.QtAR9YvZv3b64IhJ.fJFx6zWt5Z09WC",
+    "verified": true,
+    "createdAt": 1777788140895
+  }
+]
