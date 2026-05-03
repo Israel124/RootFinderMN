@@ -94,10 +94,6 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
             setVerificationNote(warning);
           }
 
-          if (code) {
-            setVerificationNote(`Codigo de verificacion disponible: ${code}`);
-            toast.success(`Codigo temporal: ${code}`);
-          }
         }
         toast.success('Registro creado. Revisa tu correo para verificar la cuenta.');
       } else {

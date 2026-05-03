@@ -226,11 +226,10 @@ async function startServer() {
 
       if (!emailResult.success) {
         console.error('Verification email failed:', emailResult.error);
-        return res.status(201).json({
+        return res.status(500).json({
           message: "Usuario registrado. No se pudo enviar el email de verificación.",
           warning: "No se pudo enviar el email de verificación. Usa el código mostrado para continuar.",
           emailError: emailResult.error,
-          verificationCode,
         });
       }
 
