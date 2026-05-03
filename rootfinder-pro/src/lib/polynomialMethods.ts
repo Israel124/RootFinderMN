@@ -8,12 +8,23 @@ export interface PolynomialIteration {
   values: Record<string, string>;
 }
 
+export interface PolynomialGraphMarker {
+  x: number;
+  y: number;
+  label: string;
+  tone: 'seed' | 'iteration' | 'root';
+}
+
 export interface PolynomialRootResult {
   method: PolynomialRootMethod;
   converged: boolean;
   message: string;
   roots: string[];
+  realRoots: number[];
+  hiddenComplexRoots: string[];
   iterations: PolynomialIteration[];
+  graphMarkers: PolynomialGraphMarker[];
+  polynomialExpression: string;
   params: Record<string, any>;
 }
 
@@ -27,13 +38,13 @@ export class PolynomialMethods {
     const coeffs = tokens.map((token) => {
       const value = Number(token.replace(',', '.'));
       if (Number.isNaN(value)) {
-        throw new Error(`Coeficiente inválido: ${token}`);
+        throw new Error(`Coeficiente invalido: ${token}`);
       }
       return value;
     });
 
     if (coeffs.length < 2) {
-      throw new Error('Ingresa al menos dos coeficientes (grado mínimo 1).');
+      throw new Error('Ingresa al menos dos coeficientes (grado minimo 1).');
     }
 
     if (coeffs[0] === 0) {
@@ -55,6 +66,38 @@ export class PolynomialMethods {
     return `${re} ${im >= 0 ? '+' : '-'} ${Math.abs(im)}i`;
   }
 
+  static isNearlyReal(value: math.Complex) {
+    return Math.abs(value.im) < 1e-8;
+  }
+
+  static toPowerAscending(coeffsDescending: number[]) {
+    return coeffsDescending.slice().reverse();
+  }
+
+  static toPowerLabel(index: number, degree: number) {
+    return `a${degree - index}`;
+  }
+
+  static polynomialToExpression(coeffs: number[]) {
+    const degree = coeffs.length - 1;
+    const terms = coeffs
+      .map((coefficient, index) => {
+        if (Math.abs(coefficient) < 1e-12) return null;
+        const power = degree - index;
+        const abs = Math.abs(coefficient);
+        const sign = coefficient < 0 ? '-' : '+';
+        const coeffText = abs === 1 && power > 0 ? '' : `${abs}`;
+        const variableText = power === 0 ? '' : power === 1 ? 'x' : `x^${power}`;
+        return `${sign} ${coeffText}${variableText}`.trim();
+      })
+      .filter(Boolean) as string[];
+
+    if (terms.length === 0) return '0';
+
+    const [first, ...rest] = terms;
+    return `${first.startsWith('+') ? first.slice(2) : first} ${rest.join(' ')}`.trim();
+  }
+
   static evaluatePolynomial(coeffs: number[], x: number): number {
     let result = coeffs[0];
     for (let i = 1; i < coeffs.length; i += 1) {
@@ -71,78 +114,158 @@ export class PolynomialMethods {
     return result;
   }
 
-  static hornerDerivative(coeffs: number[], x: number): { value: number; derivative: number } {
+  static buildHornerArrays(coeffs: number[], x: number) {
     const n = coeffs.length - 1;
-    let b = coeffs[0];
-    let c = coeffs[0];
+    const b = new Array(coeffs.length).fill(0);
+    const d = new Array(Math.max(coeffs.length - 1, 1)).fill(0);
 
-    for (let i = 1; i < n; i += 1) {
-      b = coeffs[i] + x * b;
-      c = b + x * c;
+    b[0] = coeffs[0];
+    for (let i = 1; i <= n; i += 1) {
+      b[i] = coeffs[i] + x * b[i - 1];
     }
 
-    b = coeffs[n] + x * b;
-    return { value: b, derivative: n > 0 ? c : 0 };
+    if (n > 0) {
+      d[0] = b[0];
+      for (let i = 1; i < n; i += 1) {
+        d[i] = b[i] + x * d[i - 1];
+      }
+    }
+
+    return {
+      value: b[n],
+      derivative: n > 0 ? d[n - 1] : 0,
+      b,
+      d,
+    };
+  }
+
+  static buildGraphSummary(
+    coeffs: number[],
+    roots: string[],
+    graphMarkers: PolynomialGraphMarker[],
+  ) {
+    const realRoots: number[] = [];
+    const hiddenComplexRoots: string[] = [];
+
+    for (const root of roots) {
+      const numeric = Number(root);
+      if (!Number.isNaN(numeric) && Number.isFinite(numeric)) {
+        realRoots.push(numeric);
+        continue;
+      }
+      hiddenComplexRoots.push(root);
+    }
+
+    return {
+      realRoots,
+      hiddenComplexRoots,
+      polynomialExpression: this.polynomialToExpression(coeffs),
+      graphMarkers,
+    };
   }
 
   static hornerRoot(
     coeffs: number[],
     x0: number,
     tol: number,
-    maxIter: number
+    maxIter: number,
   ): PolynomialRootResult {
     const iterations: PolynomialIteration[] = [];
+    const graphMarkers: PolynomialGraphMarker[] = [];
     let xi = x0;
 
+    graphMarkers.push({
+      x: x0,
+      y: this.evaluatePolynomial(coeffs, x0),
+      label: 'x0',
+      tone: 'seed',
+    });
+
     for (let i = 1; i <= maxIter; i += 1) {
-      const { value, derivative } = this.hornerDerivative(coeffs, xi);
+      const { value, derivative, b, d } = this.buildHornerArrays(coeffs, xi);
 
       if (Math.abs(derivative) < 1e-12) {
+        const graphSummary = this.buildGraphSummary(coeffs, [], graphMarkers);
         return {
           method: 'horner',
           converged: false,
-          message: 'Derivada cercana a cero durante la evaluación de Horner.',
+          message: 'La derivada quedo demasiado cerca de cero durante Horner-Newton.',
           roots: [],
           iterations,
-          params: { x0, tol, maxIter },
+          ...graphSummary,
+          params: { x0, tol, maxIter, coefficients: coeffs },
         };
       }
 
       const xiNext = xi - value / derivative;
       const error = Math.abs(xiNext - xi);
+
       iterations.push({
         iteration: i,
-        description: 'Evaluación de Horner y actualización Newtoniana',
+        description: 'Esquema de Horner con actualizacion de Newton para polinomios.',
         values: {
-          x: xi.toFixed(10),
-          'p(x)': value.toFixed(10),
-          "p'(x)": derivative.toFixed(10),
-          'x next': xiNext.toFixed(10),
-          error: error.toFixed(10),
+          xk: xi.toFixed(10),
+          'P(xk)': value.toFixed(10),
+          "P'(xk)": derivative.toFixed(10),
+          'xk+1': xiNext.toFixed(10),
+          error: error.toExponential(4),
+          b: `[${b.map((item) => item.toFixed(6)).join(', ')}]`,
+          c: `[${d.slice(0, Math.max(d.length, 0)).map((item) => item.toFixed(6)).join(', ')}]`,
         },
       });
 
+      graphMarkers.push({
+        x: xiNext,
+        y: this.evaluatePolynomial(coeffs, xiNext),
+        label: `x${i}`,
+        tone: i === maxIter ? 'iteration' : 'iteration',
+      });
+
       if (error < tol) {
+        const rootText = xiNext.toFixed(10);
+        const graphSummary = this.buildGraphSummary(coeffs, [rootText], [
+          ...graphMarkers,
+          {
+            x: xiNext,
+            y: 0,
+            label: 'raiz',
+            tone: 'root',
+          },
+        ]);
+
         return {
           method: 'horner',
           converged: true,
-          message: 'Convergencia alcanzada usando método de Horner.',
-          roots: [xiNext.toFixed(10)],
+          message: 'Convergencia alcanzada con Horner-Newton.',
+          roots: [rootText],
           iterations,
-          params: { x0, tol, maxIter },
+          ...graphSummary,
+          params: { x0, tol, maxIter, coefficients: coeffs },
         };
       }
 
       xi = xiNext;
     }
 
+    const finalRoot = xi.toFixed(10);
+    const graphSummary = this.buildGraphSummary(coeffs, [finalRoot], [
+      ...graphMarkers,
+      {
+        x: xi,
+        y: 0,
+        label: 'raiz aprox',
+        tone: 'root',
+      },
+    ]);
+
     return {
       method: 'horner',
       converged: false,
-      message: 'No se alcanzó convergencia dentro del número máximo de iteraciones.',
-      roots: [xi.toFixed(10)],
+      message: 'No se alcanzo convergencia con Horner-Newton en el maximo de iteraciones.',
+      roots: [finalRoot],
       iterations,
-      params: { x0, tol, maxIter },
+      ...graphSummary,
+      params: { x0, tol, maxIter, coefficients: coeffs },
     };
   }
 
@@ -152,9 +275,15 @@ export class PolynomialMethods {
     x1: number,
     x2: number,
     tol: number,
-    maxIter: number
+    maxIter: number,
   ): PolynomialRootResult {
     const iterations: PolynomialIteration[] = [];
+    const graphMarkers: PolynomialGraphMarker[] = [
+      { x: x0, y: this.evaluatePolynomial(coeffs, x0), label: 'x0', tone: 'seed' },
+      { x: x1, y: this.evaluatePolynomial(coeffs, x1), label: 'x1', tone: 'seed' },
+      { x: x2, y: this.evaluatePolynomial(coeffs, x2), label: 'x2', tone: 'seed' },
+    ];
+
     let z0 = math.complex(x0, 0);
     let z1 = math.complex(x1, 0);
     let z2 = math.complex(x2, 0);
@@ -164,51 +293,82 @@ export class PolynomialMethods {
       const f1 = this.evaluatePolynomialComplex(coeffs, z1);
       const f2 = this.evaluatePolynomialComplex(coeffs, z2);
 
-      const h1 = math.subtract(z1, z0) as math.Complex;
-      const h2 = math.subtract(z2, z1) as math.Complex;
-      const δ1 = math.divide(math.subtract(f1, f0) as math.Complex, h1) as math.Complex;
-      const δ2 = math.divide(math.subtract(f2, f1) as math.Complex, h2) as math.Complex;
-      const d = math.divide(math.subtract(δ2, δ1) as math.Complex, math.add(h2, h1) as math.Complex) as math.Complex;
-      const b = math.add(δ2, math.multiply(h2, d)) as math.Complex;
-      const D = math.sqrt(math.subtract(math.multiply(b, b) as math.Complex, math.multiply(math.multiply(f2, d) as math.Complex, 4)) as math.Complex) as math.Complex;
-      const denominator = math.abs(math.add(b, D) as math.Complex) > math.abs(math.subtract(b, D) as math.Complex)
-        ? math.add(b, D) as math.Complex
-        : math.subtract(b, D) as math.Complex;
+      const h0 = math.subtract(z1, z0) as math.Complex;
+      const h1 = math.subtract(z2, z1) as math.Complex;
+      const delta0 = math.divide(math.subtract(f1, f0) as math.Complex, h0) as math.Complex;
+      const delta1 = math.divide(math.subtract(f2, f1) as math.Complex, h1) as math.Complex;
+      const a = math.divide(math.subtract(delta1, delta0) as math.Complex, math.add(h1, h0) as math.Complex) as math.Complex;
+      const b = math.add(math.multiply(a, h1) as math.Complex, delta1) as math.Complex;
+      const c = f2;
+      const discriminant = math.sqrt(
+        math.subtract(math.multiply(b, b) as math.Complex, math.multiply(math.multiply(a, c) as math.Complex, 4)) as math.Complex,
+      ) as math.Complex;
+      const denominatorPlus = math.add(b, discriminant) as math.Complex;
+      const denominatorMinus = math.subtract(b, discriminant) as math.Complex;
+      const denominator = math.abs(denominatorPlus) > math.abs(denominatorMinus) ? denominatorPlus : denominatorMinus;
 
-      if (math.abs(denominator) === 0) {
+      if (math.abs(denominator) < 1e-12) {
+        const graphSummary = this.buildGraphSummary(coeffs, [], graphMarkers);
         return {
           method: 'muller',
           converged: false,
-          message: 'Denominador nulo durante la iteración de Müller.',
+          message: 'El denominador del paso de Muller se volvio nulo.',
           roots: [],
           iterations,
-          params: { x0, x1, x2, tol, maxIter },
+          ...graphSummary,
+          params: { x0, x1, x2, tol, maxIter, coefficients: coeffs },
         };
       }
 
-      const z3 = math.subtract(z2, math.divide(math.multiply(f2, 2) as math.Complex, denominator) as math.Complex) as math.Complex;
+      const z3 = math.subtract(z2, math.divide(math.multiply(c, 2) as math.Complex, denominator) as math.Complex) as math.Complex;
       const error = math.abs(math.subtract(z3, z2) as math.Complex);
 
       iterations.push({
         iteration: i,
-        description: 'Interpolación cuadrática local y extrapolación',
+        description: 'Interpolacion cuadratica local con la formula clasica de Muller.',
         values: {
           x0: this.formatComplex(z0),
           x1: this.formatComplex(z1),
           x2: this.formatComplex(z2),
+          h0: this.formatComplex(h0),
+          h1: this.formatComplex(h1),
+          delta0: this.formatComplex(delta0),
+          delta1: this.formatComplex(delta1),
+          a: this.formatComplex(a),
+          b: this.formatComplex(b),
+          c: this.formatComplex(c),
+          D: this.formatComplex(discriminant),
           'x3': this.formatComplex(z3),
-          error: error.toFixed(10),
+          error: error.toExponential(4),
         },
       });
 
+      if (this.isNearlyReal(z3)) {
+        graphMarkers.push({
+          x: z3.re,
+          y: this.evaluatePolynomial(coeffs, z3.re),
+          label: `x${i + 2}`,
+          tone: 'iteration',
+        });
+      }
+
       if (error < tol) {
+        const rootText = this.formatComplex(z3);
+        const graphSummary = this.buildGraphSummary(coeffs, [rootText], [
+          ...graphMarkers,
+          ...(this.isNearlyReal(z3)
+            ? [{ x: z3.re, y: 0, label: 'raiz', tone: 'root' as const }]
+            : []),
+        ]);
+
         return {
           method: 'muller',
           converged: true,
-          message: 'Convergencia alcanzada con el método de Müller.',
-          roots: [this.formatComplex(z3)],
+          message: 'Convergencia alcanzada con Muller.',
+          roots: [rootText],
           iterations,
-          params: { x0, x1, x2, tol, maxIter },
+          ...graphSummary,
+          params: { x0, x1, x2, tol, maxIter, coefficients: coeffs },
         };
       }
 
@@ -217,13 +377,22 @@ export class PolynomialMethods {
       z2 = z3;
     }
 
+    const finalRoot = this.formatComplex(z2);
+    const graphSummary = this.buildGraphSummary(coeffs, [finalRoot], [
+      ...graphMarkers,
+      ...(this.isNearlyReal(z2)
+        ? [{ x: z2.re, y: 0, label: 'raiz aprox', tone: 'root' as const }]
+        : []),
+    ]);
+
     return {
       method: 'muller',
       converged: false,
-      message: 'No se alcanzó convergencia dentro del número máximo de iteraciones.',
-      roots: [this.formatComplex(z2)],
+      message: 'No se alcanzo convergencia con Muller dentro del maximo de iteraciones.',
+      roots: [finalRoot],
       iterations,
-      params: { x0, x1, x2, tol, maxIter },
+      ...graphSummary,
+      params: { x0, x1, x2, tol, maxIter, coefficients: coeffs },
     };
   }
 
@@ -241,107 +410,132 @@ export class PolynomialMethods {
     return -b / a;
   }
 
+  static bairstowStep(aAsc: number[], r: number, s: number) {
+    const n = aAsc.length - 1;
+    const b = new Array(n + 1).fill(0);
+    const c = new Array(n + 1).fill(0);
+
+    b[n] = aAsc[n];
+    b[n - 1] = aAsc[n - 1] + r * b[n];
+
+    for (let i = n - 2; i >= 0; i -= 1) {
+      b[i] = aAsc[i] + r * b[i + 1] + s * b[i + 2];
+    }
+
+    c[n] = b[n];
+    c[n - 1] = b[n - 1] + r * c[n];
+
+    for (let i = n - 2; i >= 0; i -= 1) {
+      c[i] = b[i] + r * c[i + 1] + s * c[i + 2];
+    }
+
+    const denominator = c[2] * c[2] - c[3] * c[1];
+    return { b, c, denominator };
+  }
+
   static bairstowFullRoots(
     coeffs: number[],
     r0: number,
     s0: number,
     tol: number,
-    maxIter: number
+    maxIter: number,
   ): PolynomialRootResult {
     const iterations: PolynomialIteration[] = [];
     const roots: string[] = [];
-    let currentCoeffs = coeffs.slice();
-    let currentR = r0;
-    let currentS = s0;
+    let aAsc = this.toPowerAscending(coeffs);
+    let r = r0;
+    let s = s0;
 
-    while (currentCoeffs.length > 3) {
-      const degree = currentCoeffs.length - 1;
+    while (aAsc.length > 3) {
+      const n = aAsc.length - 1;
       let converged = false;
-      let r = currentR;
-      let s = currentS;
-      let b: number[] = [];
-      let c: number[] = [];
+      let lastB: number[] = [];
 
-      for (let i = 1; i <= maxIter; i += 1) {
-        b = new Array(degree + 1).fill(0);
-        c = new Array(degree + 1).fill(0);
-        b[0] = currentCoeffs[0];
-        b[1] = currentCoeffs[1] + r * b[0];
+      for (let step = 1; step <= maxIter; step += 1) {
+        const { b, c, denominator } = this.bairstowStep(aAsc, r, s);
+        lastB = b;
 
-        for (let j = 2; j <= degree; j += 1) {
-          b[j] = currentCoeffs[j] + r * b[j - 1] + s * b[j - 2];
-        }
-
-        c[0] = b[0];
-        c[1] = b[1] + r * c[0];
-        for (let j = 2; j <= degree; j += 1) {
-          c[j] = b[j] + r * c[j - 1] + s * c[j - 2];
-        }
-
-        const denominator = c[degree - 1] * c[degree - 1] - c[degree] * c[degree - 2];
-        if (Math.abs(denominator) < 1e-14) {
+        if (!Number.isFinite(denominator) || Math.abs(denominator) < 1e-14) {
           break;
         }
 
-        const dr = (-b[degree - 1] * c[degree - 1] + b[degree] * c[degree - 2]) / denominator;
-        const ds = (-b[degree] * c[degree - 1] + b[degree - 1] * c[degree]) / denominator;
+        const deltaR = (b[0] * c[3] - b[1] * c[2]) / denominator;
+        const deltaS = (b[1] * c[1] - b[0] * c[2]) / denominator;
 
         iterations.push({
           iteration: iterations.length + 1,
-          description: 'Ajuste de los parámetros de Bairstow',
+          description: `Ajuste de Bairstow sobre el factor x^2 + r*x + s para grado ${n}.`,
           values: {
-            r: r.toFixed(8),
-            s: s.toFixed(8),
-            'Δr': dr.toFixed(10),
-            'Δs': ds.toFixed(10),
-            'Residuo r': b[degree - 1].toFixed(10),
-            'Residuo s': b[degree].toFixed(10),
+            r: r.toFixed(10),
+            s: s.toFixed(10),
+            'Delta r': deltaR.toExponential(4),
+            'Delta s': deltaS.toExponential(4),
+            residuo0: b[0].toExponential(4),
+            residuo1: b[1].toExponential(4),
+            b: `[${b.slice().reverse().map((item) => item.toFixed(6)).join(', ')}]`,
+            c: `[${c.slice().reverse().map((item) => item.toFixed(6)).join(', ')}]`,
           },
         });
 
-        r += dr;
-        s += ds;
+        r += deltaR;
+        s += deltaS;
 
-        if (Math.abs(dr) + Math.abs(ds) < tol) {
+        if (Math.abs(deltaR) + Math.abs(deltaS) < tol) {
           converged = true;
           break;
         }
       }
 
       if (!converged) {
+        const graphSummary = this.buildGraphSummary(coeffs, roots, []);
         return {
           method: 'bairstow',
           converged: false,
-          message: 'No se logró convergencia en Bairstow para el factor cuadrático.',
+          message: 'Bairstow no logro estabilizar el factor cuadratico con los valores iniciales dados.',
           roots,
           iterations,
-          params: { coeffs, r0, s0, tol, maxIter },
+          ...graphSummary,
+          params: { r0, s0, tol, maxIter, coefficients: coeffs },
         };
       }
 
-      const quadraticRoots = this.solveQuadraticEquation(1, -r, -s);
-      roots.push(...quadraticRoots.map((root) => this.formatComplex(root)));
-      currentCoeffs = b.slice(0, currentCoeffs.length - 2);
-      currentR = r;
-      currentS = s;
+      const extractedRoots = this.solveQuadraticEquation(1, r, s);
+      roots.push(...extractedRoots.map((root) => this.formatComplex(root)));
+      aAsc = lastB.slice(2);
     }
 
-    if (currentCoeffs.length === 3) {
-      const [a, bVal, cVal] = currentCoeffs;
-      const quadraticRoots = this.solveQuadraticEquation(a, bVal, cVal);
+    if (aAsc.length === 3) {
+      const [a0, a1, a2] = aAsc;
+      const quadraticRoots = this.solveQuadraticEquation(a2, a1, a0);
       roots.push(...quadraticRoots.map((root) => this.formatComplex(root)));
-    } else if (currentCoeffs.length === 2) {
-      const root = this.solveLinearEquation(currentCoeffs[0], currentCoeffs[1]);
-      roots.push(root.toFixed(10));
+    } else if (aAsc.length === 2) {
+      const [a0, a1] = aAsc;
+      roots.push(this.solveLinearEquation(a1, a0).toFixed(10));
     }
+
+    const graphMarkers: PolynomialGraphMarker[] = [];
+    for (const root of roots) {
+      const numeric = Number(root);
+      if (!Number.isNaN(numeric) && Number.isFinite(numeric)) {
+        graphMarkers.push({
+          x: numeric,
+          y: 0,
+          label: 'raiz',
+          tone: 'root',
+        });
+      }
+    }
+
+    const graphSummary = this.buildGraphSummary(coeffs, roots, graphMarkers);
 
     return {
       method: 'bairstow',
       converged: true,
-      message: 'Bairstow completó la factorización polinómica con éxito.',
+      message: 'Bairstow completo la factorizacion polinomica.',
       roots,
       iterations,
-      params: { coeffs, r0, s0, tol, maxIter },
+      ...graphSummary,
+      params: { r0, s0, tol, maxIter, coefficients: coeffs },
     };
   }
 }

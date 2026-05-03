@@ -1,4 +1,5 @@
 import { CalculationResult } from '@/types';
+import { apiUrl } from '@/lib/apiConfig';
 
 async function parseApiResponse<T>(response: Response): Promise<T> {
   const text = await response.text();
@@ -22,8 +23,18 @@ async function parseApiResponse<T>(response: Response): Promise<T> {
 }
 
 async function safeFetch<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
+  const token = localStorage.getItem('token');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...((init?.headers as Record<string, string>) || {}),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   try {
-    const response = await fetch(input, init);
+    const response = await fetch(input, { ...init, headers });
     return parseApiResponse<T>(response);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error de red desconocido';
@@ -32,35 +43,27 @@ async function safeFetch<T>(input: RequestInfo, init?: RequestInit): Promise<T> 
 }
 
 export async function fetchHistory(): Promise<CalculationResult[]> {
-  return safeFetch<CalculationResult[]>('/api/history');
+  return safeFetch<CalculationResult[]>(apiUrl('/api/history'));
 }
 
 export async function saveHistoryItem(item: CalculationResult) {
-  const response = await fetch('/api/history', {
+  return safeFetch<{ success: boolean }>(apiUrl('/api/history'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(item),
   });
-
-  return parseApiResponse<{ success: boolean }>(response);
 }
 
 export async function updateHistoryLabel(id: string, label: string) {
-  const response = await fetch(`/api/history/${id}`, {
+  return safeFetch<{ success: boolean }>(apiUrl(`/api/history/${id}`), {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ label }),
   });
-
-  return parseApiResponse<{ success: boolean }>(response);
 }
 
 export async function deleteHistoryItem(id: string) {
-  const response = await fetch(`/api/history/${id}`, { method: 'DELETE' });
-  return parseApiResponse<{ success: boolean }>(response);
+  return safeFetch<{ success: boolean }>(apiUrl(`/api/history/${id}`), { method: 'DELETE' });
 }
 
 export async function clearHistoryItems() {
-  const response = await fetch('/api/history', { method: 'DELETE' });
-  return parseApiResponse<{ success: boolean }>(response);
+  return safeFetch<{ success: boolean }>(apiUrl('/api/history'), { method: 'DELETE' });
 }

@@ -159,22 +159,34 @@ async function initDb() {
 
 async function startServer() {
   const app = express();
-  const preferredPort = Number(process.env.PORT) || 4000;
+  const port = Number(process.env.PORT) || 10000;
 
   app.disable("x-powered-by");
   app.use(express.json({ limit: "200kb" }));
+
+  // CORS headers for production
   app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("Referrer-Policy", "no-referrer");
-    res.setHeader(
-      "Content-Security-Policy",
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self';"
-    );
+
+    if (req.method === "OPTIONS") {
+      res.sendStatus(200);
+      return;
+    }
+
     next();
   });
 
   await initDb();
+
+  // Health check
+  app.get("/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
 
   // Auth Routes
   app.post("/api/register", async (req, res) => {
@@ -318,7 +330,7 @@ async function startServer() {
     } catch (err) {
       return res.status(400).json({ error: (err as Error).message });
     }
-    
+
     if (!item.id || !item.method || !item.functionF) {
       return res.status(400).json({ error: "Datos incompletos para guardar el cálculo" });
     }
@@ -339,7 +351,7 @@ async function startServer() {
   app.patch("/api/history/:id", authenticateToken, async (req, res) => {
     const safeId = sanitizeText(req.params.id, 80);
     const { label, ...otherData } = req.body;
-    
+
     try {
       const history = await loadHistory();
       const index = history.findIndex(h => h.id === safeId && h.userId === (req as any).user.id);
@@ -384,57 +396,17 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true, hmr: false },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use("/RootFinderMN", express.static(distPath));
-    app.use(express.static(distPath));
-    app.get("/RootFinderMN", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-    app.get("/RootFinderMN/*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
-
   const host = "0.0.0.0";
-  const maxPortAttempts = 10;
+  const server = app.listen(port, host, () => {
+    const address = server.address() as AddressInfo | null;
+    const activePort = address?.port ?? port;
+    console.log(`API Server running on http://${host}:${activePort}`);
+  });
 
-  const listenOnPort = (port: number, attemptsLeft: number): void => {
-    const server = app.listen(port, host, () => {
-      const address = server.address() as AddressInfo | null;
-      const activePort = address?.port ?? port;
-      if (activePort !== preferredPort) {
-        console.warn(`Port ${preferredPort} was busy. Server started on http://localhost:${activePort}`);
-        console.warn(`If you are running the frontend from a browser, open or refresh http://localhost:${activePort} so API calls use the correct backend origin.`);
-      } else {
-        console.log(`Server running on http://localhost:${activePort}`);
-      }
-    });
-
-    server.on("error", (error: NodeJS.ErrnoException) => {
-      if (error.code === "EADDRINUSE" && attemptsLeft > 0) {
-        const nextPort = port + 1;
-        console.warn(`Port ${port} is already in use. Retrying on ${nextPort}...`);
-        listenOnPort(nextPort, attemptsLeft - 1);
-        return;
-      }
-
-      throw error;
-    });
-  };
-
-  listenOnPort(preferredPort, maxPortAttempts);
+  server.on("error", (error: NodeJS.ErrnoException) => {
+    console.error("Server error:", error);
+    throw error;
+  });
 }
 
 startServer();

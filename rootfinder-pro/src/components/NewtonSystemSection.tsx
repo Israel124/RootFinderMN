@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { MathEvaluator } from '@/lib/mathEvaluator';
 import { NumericalMethods } from '@/lib/numericalMethods';
-import { SYSTEM_HISTORY_KEY, SYSTEM_HISTORY_UPDATED_EVENT } from '@/lib/historyKeys';
+import { LOAD_SYSTEM_HISTORY_EVENT, SYSTEM_HISTORY_KEY, SYSTEM_HISTORY_UPDATED_EVENT } from '@/lib/historyKeys';
 import { SystemCalculationResult } from '@/types';
 import { AlertCircle, CheckCircle2, FunctionSquare, Sigma, History, LineChart, Pencil, Trash2, Download } from 'lucide-react';
 import { toast } from 'sonner';
@@ -42,6 +42,23 @@ export function NewtonSystemSection() {
     } catch {
       setHistory([]);
     }
+  }, []);
+
+  useEffect(() => {
+    const handleExternalLoad = (event: Event) => {
+      const detail = (event as CustomEvent<SystemHistoryItem>).detail;
+      if (!detail) return;
+      setF1(detail.functionF1);
+      setF2(detail.functionF2);
+      setX0(detail.params.x0?.toString() ?? '');
+      setY0(detail.params.y0?.toString() ?? '');
+      setTol(detail.params.tol?.toString() ?? '');
+      setMaxIter(detail.params.maxIter?.toString() ?? '');
+      setResult(detail);
+    };
+
+    window.addEventListener(LOAD_SYSTEM_HISTORY_EVENT, handleExternalLoad as EventListener);
+    return () => window.removeEventListener(LOAD_SYSTEM_HISTORY_EVENT, handleExternalLoad as EventListener);
   }, []);
 
   useEffect(() => {
