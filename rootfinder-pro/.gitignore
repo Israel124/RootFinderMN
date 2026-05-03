@@ -8,3 +8,5 @@ coverage/
 !.env.example
 history.json
 users.json
+.vercel
+.env*.local
