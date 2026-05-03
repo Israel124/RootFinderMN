@@ -9,7 +9,15 @@
   "outputDirectory": "dist",
   "routes": [
     {
-      "src": "/(.*)",
+      "src": "/assets/(.*)",
+      "dest": "/assets/$1"
+    },
+    {
+      "src": "/favicon.svg",
+      "dest": "/favicon.svg"
+    },
+    {
+      "src": "^/(.*)",
       "dest": "/index.html"
     }
   ]
