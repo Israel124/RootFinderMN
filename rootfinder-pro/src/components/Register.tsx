@@ -94,11 +94,44 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
             setVerificationNote(warning);
           }
 
+
         }
         toast.success('Registro creado. Revisa tu correo para verificar la cuenta.');
       } else {
         const message = typeof data === 'object' && data !== null && 'error' in data ? (data as any).error : String(data || response.statusText);
         toast.error(message || 'Error al registrar');
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error de conexion';
+      console.error('Register error:', error);
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async (e: { preventDefault: () => void }) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await fetch(apiUrl('/api/verify'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code: normalizedVerificationCode }),
+      });
+
+      const data = await parseResponse(response);
+
+      if (response.ok) {
+        if (data && typeof data === 'object') {
+          localStorage.setItem('token', (data as any).token);
+          onRegister((data as any).token, (data as any).user);
+        }
+        toast.success('Cuenta verificada exitosamente');
+      } else {
+        const message = typeof data === 'object' && data !== null && 'error' in data ? (data as any).error : String(data || response.statusText);
+        toast.error(message || 'Error al verificar');
       }
     } const handleSubmit = async (e: { preventDefault: () => void }) => {
   e.preventDefault();
@@ -133,37 +166,6 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
   } finally {
     setLoading(false);
   }
-};
-
-  const handleVerify = async (e: { preventDefault: () => void }) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const response = await fetch(apiUrl('/api/verify'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: normalizedVerificationCode }),
-      });
-
-      const data = await parseResponse(response);
-
-      if (response.ok) {
-        if (data && typeof data === 'object') {
-          localStorage.setItem('token', (data as any).token);
-          onRegister((data as any).token, (data as any).user);
-        }
-        toast.success('Cuenta verificada exitosamente');
-      } else {
-        const message = typeof data === 'object' && data !== null && 'error' in data ? (data as any).error : String(data || response.statusText);
-        toast.error(message || 'Error al verificar');
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Error de conexion';
-      console.error('Verify error:', error);
-      toast.error(message);
-    } finally {
-      setLoading(false);
     }
   };
 
