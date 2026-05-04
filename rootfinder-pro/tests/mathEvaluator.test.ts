@@ -4,6 +4,10 @@ import { MathEvaluator } from '../src/lib/mathEvaluator';
 
 test('MathEvaluator normaliza funciones comunes en espanol', () => {
   assert.equal(MathEvaluator.evaluate('sen(x)', Math.PI / 2), 1);
+  assert.equal(MathEvaluator.evaluate('seno(x)', Math.PI / 2), 1);
+  assert.equal(MathEvaluator.evaluate('coseno(x)', 0), 1);
+  assert.equal(MathEvaluator.evaluate('raiz(x)', 4), 2);
+  assert.equal(MathEvaluator.evaluate('sqrt(x) + 1/2', 4), 2.5);
   assert.ok(Math.abs(MathEvaluator.evaluate('ln(x)', Math.E) - 1) < 1e-10);
 });
 

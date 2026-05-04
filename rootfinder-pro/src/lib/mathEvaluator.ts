@@ -23,7 +23,7 @@ export class MathEvaluator {
   }
 
   private static preprocess(expression: string): string {
-    const normalized = expression.trim();
+    const normalized = expression.trim().toLowerCase();
     let expr = normalized;
 
     // Allow users to enter equations like "x^2 + y^2 = 4" and normalize them
@@ -34,21 +34,29 @@ export class MathEvaluator {
       expr = `(${left.trim()})-(${right})`;
     }
 
-    // Convert implicit multiplication like xy, 3x, x2, x y into explicit form
-    // Add implicit multiplication: 
-    // 3x -> 3*x, xy -> x*y, x3 -> x*3
-    expr = expr.replace(/([0-9])\s*([a-z])/gi, '$1*$2');
-    expr = expr.replace(/([a-z])\s*([a-z])/gi, '$1*$2');
-    expr = expr.replace(/([a-z])\s*([0-9])/gi, '$1*$2');
+    expr = expr
+      .replace(/√/g, 'sqrt')
+      .replace(/\braiz\s*cuadrada\b/g, 'sqrt')
+      .replace(/\braíz\s*cuadrada\b/g, 'sqrt')
+      .replace(/\braiz\b/g, 'sqrt')
+      .replace(/\braíz\b/g, 'sqrt')
+      .replace(/\bseno\b/g, 'sin')
+      .replace(/\bsen\b/g, 'sin')
+      .replace(/\bcoseno\b/g, 'cos')
+      .replace(/\btangente\b/g, 'tan')
+      .replace(/\btan(?:g)?\b/g, 'tan')
+      .replace(/\bln\b/g, 'log');
+
+    // Convert implicit multiplication without breaking function names.
+    // 3x -> 3*x, xy -> x*y, x3 -> x*3, 2sin(x) -> 2*sin(x)
+    expr = expr.replace(/(\d(?:\.\d+)?)\s*([a-zA-Z(])/g, '$1*$2');
+    expr = expr.replace(/\b([xy])\s*([xy])\b/g, '$1*$2');
+    expr = expr.replace(/\b([xy])\s*(\d)/g, '$1*$2');
     
     // Parentheses implicit multiplication: 3(x) -> 3*(x), (x)(y) -> (x)*(y), (x)3 -> (x)*3
-    expr = expr.replace(/([0-9a-z])\s*\(/gi, '$1*(');
-    expr = expr.replace(/\)\s*([0-9a-z])/gi, ')*$1');
-    expr = expr.replace(/\)\s*\(/gi, ')*(');
-
-    expr = expr.toLowerCase();
-    expr = expr.replace(/\bsen\b/g, 'sin');
-    expr = expr.replace(/\bln\b/g, 'log');
+    expr = expr.replace(/(\d|[xy])\s*\(/g, '$1*(');
+    expr = expr.replace(/\)\s*(\d|[xy])/g, ')*$1');
+    expr = expr.replace(/\)\s*\(/g, ')*(');
 
     return expr;
   }
@@ -145,6 +153,10 @@ export class MathEvaluator {
     scope: Record<string, number>,
     variable = 'x'
   ): number {
+    if (!Object.prototype.hasOwnProperty.call(scope, variable)) {
+      throw new Error('Variable no encontrada en el alcance');
+    }
+
     try {
       if (order === 0) {
         return this.evaluateWithScope(expression, scope);
@@ -159,17 +171,39 @@ export class MathEvaluator {
 
       return result;
     } catch {
-      if (!Object.prototype.hasOwnProperty.call(scope, variable)) {
-        throw new Error('Variable no encontrada en el alcance');
+      return this.evaluateNthDerivativeNumerically(expression, order, scope, variable);
+    }
+  }
+
+  private static evaluateNthDerivativeNumerically(
+    expression: string,
+    order: number,
+    scope: Record<string, number>,
+    variable: string,
+  ): number {
+    const pivot = scope[variable];
+    const h = 1e-5;
+    const derivative = (currentOrder: number, currentPivot: number, depth: number): number => {
+      if (depth > 18) {
+        throw new Error('La derivada no se pudo aproximar numericamente');
       }
 
-      const pivot = scope[variable];
-      const h = 1e-5;
-      return (
-        this.evaluateNthDerivative(expression, order - 1, { ...scope, [variable]: pivot + h }, variable) -
-        this.evaluateNthDerivative(expression, order - 1, { ...scope, [variable]: pivot - h }, variable)
-      ) / (2 * h);
-    }
+      if (currentOrder === 0) {
+        return this.evaluateWithScope(expression, { ...scope, [variable]: currentPivot });
+      }
+
+      const plus = derivative(currentOrder - 1, currentPivot + h, depth + 1);
+      const minus = derivative(currentOrder - 1, currentPivot - h, depth + 1);
+      const value = (plus - minus) / (2 * h);
+
+      if (!Number.isFinite(value)) {
+        throw new Error('Derivada no finita');
+      }
+
+      return value;
+    };
+
+    return derivative(order, pivot, 0);
   }
 
   static isValid(expression: string): boolean {

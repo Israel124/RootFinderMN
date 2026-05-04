@@ -11,6 +11,7 @@ import { LOAD_TAYLOR_HISTORY_EVENT, TAYLOR_HISTORY_KEY, TAYLOR_HISTORY_UPDATED_E
 import { Sigma, FunctionSquare, Calculator, LineChart, History, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildTaylorResult, TaylorResult } from '@/lib/taylor';
+import { GeoGebraGraph } from '@/components/GeoGebraGraph';
 
 type TaylorHistoryItem = TaylorResult & {
   id: string;
@@ -193,17 +194,24 @@ export function TaylorSection() {
   const handleCalculate = () => {
     try {
       const calculation = buildTaylorResult(fx, center, order, evaluateAt);
+      const historyItem = {
+        ...calculation,
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        fx,
+        label: historyLabel.trim(),
+      };
       setResult(calculation);
-      setHistory((current) => [
-        {
-          ...calculation,
-          id: crypto.randomUUID(),
-          timestamp: Date.now(),
-          fx,
-          label: historyLabel.trim(),
-        },
-        ...current,
-      ].slice(0, 20));
+      setHistory((current) => {
+        const next = [historyItem, ...current].slice(0, 20);
+        try {
+          window.localStorage.setItem(TAYLOR_HISTORY_KEY, JSON.stringify(next));
+          window.dispatchEvent(new Event(TAYLOR_HISTORY_UPDATED_EVENT));
+        } catch {
+          // Ignore local storage failures.
+        }
+        return next;
+      });
       setHistoryLabel('');
       toast.success('Polinomio de Taylor calculado');
     } catch (error: any) {
@@ -398,9 +406,18 @@ export function TaylorSection() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-hidden rounded-2xl border border-primary/20 bg-black">
-            <canvas ref={graphRef} width={1200} height={460} className="h-auto w-full min-h-[20rem] lg:min-h-[28rem]" />
-          </div>
+          <GeoGebraGraph
+            expressions={activeResult ? [fx, activeResult.polynomial] : [fx]}
+            points={activeResult ? [{ x: activeResult.evaluateAt, y: activeResult.approximation, label: 'P_n(x)' }] : []}
+            xMin={graphConfig.xmin}
+            xMax={graphConfig.xmax}
+            heightClassName="h-[28rem] lg:h-[34rem]"
+            fallback={
+              <div className="overflow-hidden rounded-2xl border border-primary/20 bg-black">
+                <canvas ref={graphRef} width={1200} height={460} className="h-auto w-full min-h-[20rem] lg:min-h-[28rem]" />
+              </div>
+            }
+          />
         </CardContent>
       </Card>
 

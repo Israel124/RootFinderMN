@@ -10,3 +10,4 @@ history.json
 users.json
 .vercel
 .env*.local
+.env

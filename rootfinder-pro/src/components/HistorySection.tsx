@@ -27,6 +27,8 @@ import {
   LOAD_TAYLOR_HISTORY_EVENT,
   POLYNOMIAL_HISTORY_KEY,
   POLYNOMIAL_HISTORY_UPDATED_EVENT,
+  RESOLUTION_HISTORY_KEY,
+  RESOLUTION_HISTORY_UPDATED_EVENT,
   SYSTEM_HISTORY_KEY,
   SYSTEM_HISTORY_UPDATED_EVENT,
   TAYLOR_HISTORY_KEY,
@@ -49,6 +51,7 @@ interface HistorySectionProps {
   onLoad: (result: CalculationResult) => void;
   onUpdate: (id: string, label: string) => void;
   onNavigateToTab: (tab: 'history' | 'taylor' | 'polynomial' | 'systems' | 'results' | 'methods' | 'graph' | 'verification') => void;
+  view?: 'full' | 'resolution';
 }
 
 const moduleMeta: Record<ModuleSection, { title: string; icon: typeof Sigma; description: string }> = {
@@ -84,27 +87,31 @@ function readLocalHistory(key: string) {
   }
 }
 
-export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate, onNavigateToTab }: HistorySectionProps) {
+export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate, onNavigateToTab, view = 'full' }: HistorySectionProps) {
   const [activeSection, setActiveSection] = useState<ModuleSection>('resolution');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [resolutionHistory, setResolutionHistory] = useState<CalculationResult[]>([]);
   const [taylorHistory, setTaylorHistory] = useState<LocalHistoryItem[]>([]);
   const [polynomialHistory, setPolynomialHistory] = useState<LocalHistoryItem[]>([]);
   const [systemsHistory, setSystemsHistory] = useState<LocalHistoryItem[]>([]);
 
   useEffect(() => {
     const refreshLocalHistories = () => {
+      setResolutionHistory(readLocalHistory(RESOLUTION_HISTORY_KEY));
       setTaylorHistory(readLocalHistory(TAYLOR_HISTORY_KEY));
       setPolynomialHistory(readLocalHistory(POLYNOMIAL_HISTORY_KEY));
       setSystemsHistory(readLocalHistory(SYSTEM_HISTORY_KEY));
     };
 
     refreshLocalHistories();
+    window.addEventListener(RESOLUTION_HISTORY_UPDATED_EVENT, refreshLocalHistories);
     window.addEventListener(TAYLOR_HISTORY_UPDATED_EVENT, refreshLocalHistories);
     window.addEventListener(POLYNOMIAL_HISTORY_UPDATED_EVENT, refreshLocalHistories);
     window.addEventListener(SYSTEM_HISTORY_UPDATED_EVENT, refreshLocalHistories);
     window.addEventListener('storage', refreshLocalHistories);
     return () => {
+      window.removeEventListener(RESOLUTION_HISTORY_UPDATED_EVENT, refreshLocalHistories);
       window.removeEventListener(TAYLOR_HISTORY_UPDATED_EVENT, refreshLocalHistories);
       window.removeEventListener(POLYNOMIAL_HISTORY_UPDATED_EVENT, refreshLocalHistories);
       window.removeEventListener(SYSTEM_HISTORY_UPDATED_EVENT, refreshLocalHistories);
@@ -114,12 +121,12 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate, o
 
   const totals = useMemo(
     () => ({
-      resolution: history.length,
+      resolution: resolutionHistory.length,
       taylor: taylorHistory.length,
       polynomial: polynomialHistory.length,
       systems: systemsHistory.length,
     }),
-    [history.length, taylorHistory.length, polynomialHistory.length, systemsHistory.length],
+    [resolutionHistory.length, taylorHistory.length, polynomialHistory.length, systemsHistory.length],
   );
 
   const startEditing = (item: { id: string; label?: string }) => {
@@ -133,7 +140,11 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate, o
   };
 
   const saveResolutionEdit = (id: string) => {
-    onUpdate(id, editValue);
+    updateLocalHistory(
+      RESOLUTION_HISTORY_KEY,
+      (items) => items.map((item) => (item.id === id ? { ...item, label: editValue.trim() } : item)),
+      RESOLUTION_HISTORY_UPDATED_EVENT,
+    );
     cancelEdit();
     toast.success('Etiqueta actualizada');
   };
@@ -147,7 +158,9 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate, o
 
   const saveLocalEdit = (section: ModuleSection, id: string) => {
     const target =
-      section === 'taylor'
+      section === 'resolution'
+        ? { key: RESOLUTION_HISTORY_KEY, eventName: RESOLUTION_HISTORY_UPDATED_EVENT }
+        : section === 'taylor'
         ? { key: TAYLOR_HISTORY_KEY, eventName: TAYLOR_HISTORY_UPDATED_EVENT }
         : section === 'polynomial'
         ? { key: POLYNOMIAL_HISTORY_KEY, eventName: POLYNOMIAL_HISTORY_UPDATED_EVENT }
@@ -164,7 +177,9 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate, o
 
   const deleteLocalItem = (section: ModuleSection, id: string) => {
     const target =
-      section === 'taylor'
+      section === 'resolution'
+        ? { key: RESOLUTION_HISTORY_KEY, eventName: RESOLUTION_HISTORY_UPDATED_EVENT }
+        : section === 'taylor'
         ? { key: TAYLOR_HISTORY_KEY, eventName: TAYLOR_HISTORY_UPDATED_EVENT }
         : section === 'polynomial'
         ? { key: POLYNOMIAL_HISTORY_KEY, eventName: POLYNOMIAL_HISTORY_UPDATED_EVENT }
@@ -177,7 +192,9 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate, o
 
   const clearLocalSection = (section: ModuleSection) => {
     const target =
-      section === 'taylor'
+      section === 'resolution'
+        ? { key: RESOLUTION_HISTORY_KEY, eventName: RESOLUTION_HISTORY_UPDATED_EVENT }
+        : section === 'taylor'
         ? { key: TAYLOR_HISTORY_KEY, eventName: TAYLOR_HISTORY_UPDATED_EVENT }
         : section === 'polynomial'
         ? { key: POLYNOMIAL_HISTORY_KEY, eventName: POLYNOMIAL_HISTORY_UPDATED_EVENT }
@@ -207,10 +224,10 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate, o
   };
 
   const exportResolutionToExcel = async () => {
-    if (history.length === 0) return toast.error('No hay historial para exportar');
+    if (resolutionHistory.length === 0) return toast.error('No hay historial para exportar');
 
     const XLSX = await import('xlsx');
-    const data = history.map((item) => ({
+    const data = resolutionHistory.map((item) => ({
       Fecha: format(item.timestamp, 'dd/MM/yyyy HH:mm:ss'),
       Metodo: item.method,
       Funcion: item.functionF,
@@ -228,10 +245,10 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate, o
   };
 
   const exportResolutionToCSV = () => {
-    if (history.length === 0) return toast.error('No hay historial para exportar');
+    if (resolutionHistory.length === 0) return toast.error('No hay historial para exportar');
 
     const headers = ['Fecha', 'Metodo', 'Funcion', 'Raiz', 'Error', 'Iteraciones', 'Convergencia'];
-    const rows = history.map((item) => [
+    const rows = resolutionHistory.map((item) => [
       format(item.timestamp, 'dd/MM/yyyy HH:mm:ss'),
       item.method,
       item.functionF,
@@ -347,6 +364,116 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate, o
     );
   };
 
+  const renderResolutionHistory = () => (
+    <>
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" onClick={exportResolutionToExcel} className="border-primary/20 hover:bg-primary/10">
+          <FileSpreadsheet className="w-4 h-4 mr-2 text-primary" />
+          Excel
+        </Button>
+        <Button variant="outline" size="sm" onClick={exportResolutionToCSV} className="border-primary/20 hover:bg-primary/10">
+          <FileText className="w-4 h-4 mr-2 text-primary" />
+          CSV
+        </Button>
+        <Button variant="destructive" size="sm" onClick={() => clearLocalSection('resolution')}>
+          <Trash2 className="w-4 h-4 mr-2" />
+          Limpiar modulo
+        </Button>
+      </div>
+
+      {resolutionHistory.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground border rounded-xl border-dashed border-primary/20 bg-primary/5">
+          No hay registros de biseccion, regla falsa, Newton-Raphson, secante o punto fijo.
+        </div>
+      ) : (
+        <div className="rounded-xl border border-primary/10 overflow-hidden bg-background/30">
+          <Table>
+            <TableHeader className="bg-primary/5">
+              <TableRow>
+                <TableHead className="text-primary/70 font-bold uppercase text-[10px] tracking-widest">Fecha</TableHead>
+                <TableHead className="text-primary/70 font-bold uppercase text-[10px] tracking-widest">Etiqueta / Nota</TableHead>
+                <TableHead className="text-primary/70 font-bold uppercase text-[10px] tracking-widest">Metodo</TableHead>
+                <TableHead className="text-primary/70 font-bold uppercase text-[10px] tracking-widest">Funcion</TableHead>
+                <TableHead className="text-primary/70 font-bold uppercase text-[10px] tracking-widest">Raiz</TableHead>
+                <TableHead className="text-primary/70 font-bold uppercase text-[10px] tracking-widest">Estado</TableHead>
+                <TableHead className="text-right text-primary/70 font-bold uppercase text-[10px] tracking-widest">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {resolutionHistory.map((item) => (
+                <TableRow key={item.id} className="group hover:bg-primary/5 transition-colors">
+                  <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
+                    {format(item.timestamp, 'dd/MM/yy HH:mm')}
+                  </TableCell>
+                  <TableCell>
+                    {editingId === item.id ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          className="h-8 text-xs w-[150px] bg-background border-primary/30"
+                          placeholder="Nota..."
+                          autoFocus
+                        />
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => saveResolutionEdit(item.id)}>
+                          <Check className="w-3 h-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={cancelEdit}>
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium truncate max-w-[150px] text-foreground">
+                          {item.label || <span className="text-muted-foreground italic text-xs">Sin etiqueta</span>}
+                        </span>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-primary" onClick={() => startEditing(item)}>
+                          <Edit2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="capitalize font-bold text-primary">{item.method}</TableCell>
+                  <TableCell className="font-mono text-xs max-w-[200px] truncate text-muted-foreground">{item.functionF}</TableCell>
+                  <TableCell className="font-mono text-xs text-secondary font-bold">{item.root !== null ? item.root.toFixed(6) : 'N/A'}</TableCell>
+                  <TableCell>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${item.converged ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-destructive/20 text-destructive border border-destructive/30'}`}>
+                      {item.converged ? 'OK' : 'FAIL'}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10" onClick={() => onLoad(item)}>
+                        <ExternalLink className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => deleteLocalItem('resolution', item.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </>
+  );
+
+  if (view === 'resolution') {
+    return (
+      <Card className="max-w-6xl mx-auto border-primary/10 bg-card/50 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="text-primary">Historial de metodos de resolucion</CardTitle>
+          <CardDescription>
+            Solo registros de biseccion, regla falsa, Newton-Raphson, secante y punto fijo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>{renderResolutionHistory()}</CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="max-w-6xl mx-auto border-primary/10 bg-card/50 backdrop-blur-sm">
       <CardHeader>
@@ -387,97 +514,7 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate, o
       <CardContent>
         {activeSection === 'resolution' ? (
           <>
-            <div className="mb-4 flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={exportResolutionToExcel} className="border-primary/20 hover:bg-primary/10">
-                <FileSpreadsheet className="w-4 h-4 mr-2 text-primary" />
-                Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={exportResolutionToCSV} className="border-primary/20 hover:bg-primary/10">
-                <FileText className="w-4 h-4 mr-2 text-primary" />
-                CSV
-              </Button>
-              <Button variant="destructive" size="sm" onClick={onClear}>
-                <Trash2 className="w-4 h-4 mr-2" />
-                Limpiar modulo
-              </Button>
-            </div>
-
-            {history.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground border rounded-xl border-dashed border-primary/20 bg-primary/5">
-                No hay registros en este modulo.
-              </div>
-            ) : (
-              <div className="rounded-xl border border-primary/10 overflow-hidden bg-background/30">
-                <Table>
-                  <TableHeader className="bg-primary/5">
-                    <TableRow>
-                      <TableHead className="text-primary/70 font-bold uppercase text-[10px] tracking-widest">Fecha</TableHead>
-                      <TableHead className="text-primary/70 font-bold uppercase text-[10px] tracking-widest">Etiqueta / Nota</TableHead>
-                      <TableHead className="text-primary/70 font-bold uppercase text-[10px] tracking-widest">Metodo</TableHead>
-                      <TableHead className="text-primary/70 font-bold uppercase text-[10px] tracking-widest">Funcion</TableHead>
-                      <TableHead className="text-primary/70 font-bold uppercase text-[10px] tracking-widest">Raiz</TableHead>
-                      <TableHead className="text-primary/70 font-bold uppercase text-[10px] tracking-widest">Estado</TableHead>
-                      <TableHead className="text-right text-primary/70 font-bold uppercase text-[10px] tracking-widest">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {history.map((item) => (
-                      <TableRow key={item.id} className="group hover:bg-primary/5 transition-colors">
-                        <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
-                          {format(item.timestamp, 'dd/MM/yy HH:mm')}
-                        </TableCell>
-                        <TableCell>
-                          {editingId === item.id ? (
-                            <div className="flex items-center gap-1">
-                              <Input
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                className="h-8 text-xs w-[150px] bg-background border-primary/30"
-                                placeholder="Nota..."
-                                autoFocus
-                              />
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => saveResolutionEdit(item.id)}>
-                                <Check className="w-3 h-3" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={cancelEdit}>
-                                <X className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium truncate max-w-[150px] text-foreground">
-                                {item.label || <span className="text-muted-foreground italic text-xs">Sin etiqueta</span>}
-                              </span>
-                              <Button variant="ghost" size="icon" className="h-6 w-6 text-primary" onClick={() => startEditing(item)}>
-                                <Edit2 className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="capitalize font-bold text-primary">{item.method}</TableCell>
-                        <TableCell className="font-mono text-xs max-w-[200px] truncate text-muted-foreground">{item.functionF}</TableCell>
-                        <TableCell className="font-mono text-xs text-secondary font-bold">{item.root !== null ? item.root.toFixed(6) : 'N/A'}</TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${item.converged ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-destructive/20 text-destructive border border-destructive/30'}`}>
-                            {item.converged ? 'OK' : 'FAIL'}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10" onClick={() => onLoad(item)}>
-                              <ExternalLink className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => onDelete(item.id)}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+            {renderResolutionHistory()}
           </>
         ) : (
           <>
