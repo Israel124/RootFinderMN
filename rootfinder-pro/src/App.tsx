@@ -15,6 +15,8 @@ import { Register } from './components/Register';
 import {
   POLYNOMIAL_HISTORY_KEY,
   POLYNOMIAL_HISTORY_UPDATED_EVENT,
+  RESOLUTION_HISTORY_KEY,
+  RESOLUTION_HISTORY_UPDATED_EVENT,
   SYSTEM_HISTORY_KEY,
   SYSTEM_HISTORY_UPDATED_EVENT,
   TAYLOR_HISTORY_KEY,
@@ -277,6 +279,7 @@ export default function App() {
   const [currentResult, setCurrentResult] = useState<CalculationResult | null>(null);
   const [history, setHistory] = useState<CalculationResult[]>([]);
   const [historyStatus, setHistoryStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [resolutionHistoryCount, setResolutionHistoryCount] = useState(0);
   const [systemHistoryCount, setSystemHistoryCount] = useState(0);
   const [taylorHistoryCount, setTaylorHistoryCount] = useState(0);
   const [polynomialHistoryCount, setPolynomialHistoryCount] = useState(0);
@@ -293,11 +296,13 @@ export default function App() {
   }, []);
 
   const handleLogin = (token: string, userData: any) => {
+    localStorage.setItem('token', token);
     setUser(userData);
     navigateToApp(pendingTab);
   };
 
   const handleRegister = (token: string, userData: any) => {
+    localStorage.setItem('token', token);
     setUser(userData);
     navigateToApp(pendingTab);
   };
@@ -326,6 +331,16 @@ export default function App() {
       setSystemHistoryCount(Array.isArray(items) ? items.length : 0);
     } catch {
       setSystemHistoryCount(0);
+    }
+  };
+
+  const loadResolutionHistoryCount = () => {
+    try {
+      const raw = window.localStorage.getItem(RESOLUTION_HISTORY_KEY);
+      const items = raw ? JSON.parse(raw) : [];
+      setResolutionHistoryCount(Array.isArray(items) ? items.length : 0);
+    } catch {
+      setResolutionHistoryCount(0);
     }
   };
 
@@ -389,6 +404,12 @@ export default function App() {
 
   // Load history from API
   useEffect(() => {
+    if (!localStorage.getItem('token')) {
+      setHistoryStatus('idle');
+      setHistory([]);
+      return;
+    }
+
     let active = true;
     setHistoryStatus('loading');
 
@@ -410,24 +431,29 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    loadResolutionHistoryCount();
     loadSystemHistoryCount();
     loadTaylorHistoryCount();
     loadPolynomialHistoryCount();
 
+    const refreshResolution = () => loadResolutionHistoryCount();
     const refreshSystem = () => loadSystemHistoryCount();
     const refreshTaylor = () => loadTaylorHistoryCount();
     const refreshPolynomial = () => loadPolynomialHistoryCount();
     const refreshAll = () => {
       loadSystemHistoryCount();
+      loadResolutionHistoryCount();
       loadTaylorHistoryCount();
       loadPolynomialHistoryCount();
     };
+    window.addEventListener(RESOLUTION_HISTORY_UPDATED_EVENT, refreshResolution);
     window.addEventListener(SYSTEM_HISTORY_UPDATED_EVENT, refreshSystem);
     window.addEventListener(TAYLOR_HISTORY_UPDATED_EVENT, refreshTaylor);
     window.addEventListener(POLYNOMIAL_HISTORY_UPDATED_EVENT, refreshPolynomial);
     window.addEventListener('storage', refreshAll);
 
     return () => {
+      window.removeEventListener(RESOLUTION_HISTORY_UPDATED_EVENT, refreshResolution);
       window.removeEventListener(SYSTEM_HISTORY_UPDATED_EVENT, refreshSystem);
       window.removeEventListener(TAYLOR_HISTORY_UPDATED_EVENT, refreshTaylor);
       window.removeEventListener(POLYNOMIAL_HISTORY_UPDATED_EVENT, refreshPolynomial);
@@ -462,6 +488,17 @@ export default function App() {
 
     setCurrentResult(finalResult);
     setGx(finalResult.functionG || '');
+
+    try {
+      const raw = window.localStorage.getItem(RESOLUTION_HISTORY_KEY);
+      const localItems = raw ? JSON.parse(raw) : [];
+      const safeItems = Array.isArray(localItems) ? localItems : [];
+      const nextItems = [finalResult, ...safeItems.filter((item: CalculationResult) => item.id !== finalResult.id)].slice(0, 50);
+      window.localStorage.setItem(RESOLUTION_HISTORY_KEY, JSON.stringify(nextItems));
+      window.dispatchEvent(new Event(RESOLUTION_HISTORY_UPDATED_EVENT));
+    } catch {
+      // Ignore local history failures.
+    }
     
     // Actualizar historial local
     setHistory(prev => {
@@ -641,7 +678,7 @@ export default function App() {
                 className="w-full text-left"
               >
                 <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/60">Estado de aprendizaje</p>
-                <p className="mt-3 text-3xl font-black">{history.length + systemHistoryCount + taylorHistoryCount + polynomialHistoryCount}</p>
+                <p className="mt-3 text-3xl font-black">{resolutionHistoryCount + systemHistoryCount + taylorHistoryCount + polynomialHistoryCount}</p>
                 <p className="mt-2 text-sm text-muted-foreground">Toca aqui para abrir el historial completo por modulos.</p>
               </button>
             </div>
@@ -707,6 +744,7 @@ export default function App() {
                         onLoad={handleLoadHistory}
                         onUpdate={handleUpdateHistory}
                         onNavigateToTab={setActiveTab}
+                        view="resolution"
                       />
                     )}
                     {activeTab === 'graph' && (

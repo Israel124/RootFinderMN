@@ -8,6 +8,7 @@ import { Maximize2, Minimize2, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { detectZeroCrossings, normalizeRange, PlotRange } from '@/lib/graphUtils';
+import { GeoGebraGraph } from '@/components/GeoGebraGraph';
 
 interface GraphSectionProps {
   f: string;
@@ -165,6 +166,27 @@ export function GraphSection({ f, root }: GraphSectionProps) {
     return () => window.removeEventListener('resize', render);
   }, [drawOnCanvas, f, root, range, isDialogOpen]);
 
+  useEffect(() => {
+    if (!f) {
+      setCrossings([]);
+      return;
+    }
+
+    const { xmin, xmax } = normalizeRange(range, defaultRange);
+    const step = (xmax - xmin) / 600;
+    const samples: Array<{ x: number; y: number }> = [];
+
+    for (let x = xmin; x <= xmax; x += step) {
+      try {
+        samples.push({ x, y: MathEvaluator.evaluate(f, x) });
+      } catch {
+        // Ignore discontinuities and invalid samples.
+      }
+    }
+
+    setCrossings(detectZeroCrossings(samples));
+  }, [f, range]);
+
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = e.currentTarget;
     const rect = canvas.getBoundingClientRect();
@@ -260,36 +282,47 @@ export function GraphSection({ f, root }: GraphSectionProps) {
           </div>
         </CardHeader>
         <CardContent className="p-0 sm:p-6">
-          <div className="aspect-[16/9] bg-black rounded-2xl border border-primary/20 overflow-hidden relative group shadow-2xl">
-            <canvas 
-              ref={canvasRef} 
-              className="w-full h-full cursor-crosshair"
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-            />
-            {mousePos && (
-              <div 
-                className="graph-tooltip"
-                style={{ left: mousePos.x + 15, top: mousePos.y + 15 }}
-              >
-                <div className="font-mono font-bold text-primary-foreground/70 mb-0.5">Coordenadas</div>
-                <div className="font-mono text-primary">x: {mousePos.mathX.toFixed(4)}</div>
-                <div className="font-mono text-primary">y: {mousePos.mathY.toFixed(4)}</div>
+          <GeoGebraGraph
+            expressions={[f]}
+            points={root !== null ? [{ x: root, y: 0, label: 'Raiz' }] : []}
+            xMin={range.xmin}
+            xMax={range.xmax}
+            yMin={range.ymin}
+            yMax={range.ymax}
+            heightClassName="h-[28rem] lg:h-[34rem]"
+            fallback={
+              <div className="aspect-[16/9] bg-black rounded-2xl border border-primary/20 overflow-hidden relative group shadow-2xl">
+                <canvas
+                  ref={canvasRef}
+                  className="w-full h-full cursor-crosshair"
+                  onMouseMove={handleMouseMove}
+                  onMouseLeave={handleMouseLeave}
+                />
+                {mousePos && (
+                  <div
+                    className="graph-tooltip"
+                    style={{ left: mousePos.x + 15, top: mousePos.y + 15 }}
+                  >
+                    <div className="font-mono font-bold text-primary-foreground/70 mb-0.5">Coordenadas</div>
+                    <div className="font-mono text-primary">x: {mousePos.mathX.toFixed(4)}</div>
+                    <div className="font-mono text-primary">y: {mousePos.mathY.toFixed(4)}</div>
+                  </div>
+                )}
+                {mousePos && (
+                  <>
+                    <div
+                      className="absolute pointer-events-none border-l border-dashed border-primary/30 h-full"
+                      style={{ left: mousePos.x }}
+                    />
+                    <div
+                      className="absolute pointer-events-none border-t border-dashed border-primary/30 w-full"
+                      style={{ top: mousePos.y }}
+                    />
+                  </>
+                )}
               </div>
-            )}
-            {mousePos && (
-              <>
-                <div 
-                  className="absolute pointer-events-none border-l border-dashed border-primary/30 h-full"
-                  style={{ left: mousePos.x }}
-                />
-                <div 
-                  className="absolute pointer-events-none border-t border-dashed border-primary/30 w-full"
-                  style={{ top: mousePos.y }}
-                />
-              </>
-            )}
-          </div>
+            }
+          />
         </CardContent>
       </Card>
 

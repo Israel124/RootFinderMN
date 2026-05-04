@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import fs from "fs/promises";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import pg from "pg";
 import type { AddressInfo } from "net";
 import { sendVerificationEmail } from "./src/lib/emailService.js";
 
@@ -16,6 +17,16 @@ const __dirname = path.dirname(__filename);
 const JWT_SECRET = process.env.JWT_SECRET || "default-secret-change-in-production";
 const HISTORY_FILE = path.join(__dirname, 'history.json');
 const USERS_FILE = path.join(__dirname, 'users.json');
+
+const { Pool } = pg;
+const pool = process.env.DATABASE_URL 
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false,
+      },
+    })
+  : null;
 
 async function loadUsers(): Promise<any[]> {
   try {
@@ -66,6 +77,11 @@ const ALLOWED_METHODS = new Set([
   "newton-raphson",
   "secant",
   "fixed-point",
+  "muller",
+  "bairstow",
+  "horner",
+  "taylor",
+  "newton-raphson-system",
 ]);
 
 function sanitizeText(value: unknown, maxLength: number) {
@@ -121,7 +137,7 @@ function sanitizeCalculationPayload(input: any) {
 
   const method = sanitizeText(input.method, 40);
   if (!ALLOWED_METHODS.has(method)) {
-    throw new Error("Método inválido");
+    throw new Error(`Método inválido: ${method}`);
   }
 
   const iterations = sanitizeIterations(input.iterations);
@@ -131,15 +147,15 @@ function sanitizeCalculationPayload(input: any) {
     id: sanitizeText(input.id, 80),
     timestamp: Number.isFinite(Number(input.timestamp)) ? Number(input.timestamp) : Date.now(),
     method,
-    functionF: sanitizeText(input.functionF, 1000),
-    functionG: sanitizeText(input.functionG, 1000) || null,
-    root: input.root === null ? null : sanitizeNumber(input.root),
-    error: input.error === null ? null : sanitizeNumber(input.error),
+    functionF: sanitizeText(input.functionF || input.functionF1 || input.fx || "", 2000),
+    functionG: sanitizeText(input.functionG || input.functionF2 || "", 2000) || null,
+    root: input.root === null || input.root === undefined ? (input.solution?.x ?? null) : sanitizeNumber(input.root),
+    error: input.error === null || input.error === undefined ? null : sanitizeNumber(input.error),
     iterations,
     converged: Boolean(input.converged),
-    message: sanitizeText(input.message, 500),
+    message: sanitizeText(input.message, 1000),
     params,
-    label: sanitizeText(input.label, 120) || null,
+    label: sanitizeText(input.label, 200) || null,
   };
 }
 
@@ -152,9 +168,53 @@ async function ensureJsonFile(filePath: string) {
 }
 
 async function initDb() {
-  console.log("Using local JSON file for persistence.");
+  console.log("Initializing storage...");
   await ensureJsonFile(USERS_FILE);
   await ensureJsonFile(HISTORY_FILE);
+
+  if (!pool || !process.env.DATABASE_URL) {
+    console.warn("DATABASE_URL not found. Skipping DB initialization.");
+    return;
+  }
+
+  try {
+    const client = await pool.connect();
+    console.log("Database connection established.");
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS calculations (
+          id UUID PRIMARY KEY,
+          timestamp BIGINT NOT NULL,
+          method TEXT NOT NULL,
+          function_f TEXT NOT NULL,
+          function_g TEXT,
+          root DOUBLE PRECISION,
+          error DOUBLE PRECISION,
+          iterations JSONB NOT NULL,
+          converged BOOLEAN NOT NULL,
+          message TEXT,
+          params JSONB NOT NULL,
+          label TEXT,
+          user_id TEXT
+        );
+      `);
+
+      // Migration: Add user_id column if it doesn't exist
+      await client.query(`
+        DO $$ 
+        BEGIN 
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='calculations' AND column_name='user_id') THEN
+            ALTER TABLE calculations ADD COLUMN user_id TEXT;
+          END IF;
+        END $$;
+      `);
+    } finally {
+      client.release();
+    }
+    console.log("PostgreSQL database initialized successfully.");
+  } catch (err) {
+    console.error("Error initializing PostgreSQL database:", err);
+  }
 }
 
 async function startServer() {
@@ -301,17 +361,35 @@ async function startServer() {
 
   // API Routes
   app.get("/api/history", authenticateToken, async (req, res) => {
+    if (!pool) return res.json([]);
     try {
-      const history = await loadHistory();
-      const userHistory = history.filter(h => h.userId === (req as any).user.id);
-      res.json(userHistory.slice(0, 50));
+      const result = await pool.query(
+        "SELECT * FROM calculations WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 50",
+        [(req as any).user.id]
+      );
+      const history = result.rows.map(row => ({
+        id: row.id,
+        timestamp: Number(row.timestamp),
+        method: row.method,
+        functionF: row.function_f,
+        functionG: row.function_g,
+        root: row.root,
+        error: row.error,
+        iterations: row.iterations,
+        converged: row.converged,
+        message: row.message,
+        params: row.params,
+        label: row.label
+      }));
+      res.json(history);
     } catch (err) {
-      console.error('Load History Error:', err);
+      console.error('Fetch History Error:', err);
       res.status(500).json({ error: "No se pudo cargar el historial" });
     }
   });
 
   app.post("/api/history", authenticateToken, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Base de datos no configurada" });
     let item;
     try {
       item = sanitizeCalculationPayload(req.body);
@@ -324,47 +402,88 @@ async function startServer() {
     }
 
     try {
-      const history = await loadHistory();
-      const filtered = history.filter(h => h.id !== item.id || h.userId !== (req as any).user.id);
-      const newItem = { ...item, userId: (req as any).user.id };
-      const newHistory = [newItem, ...filtered].slice(0, 50);
-      await saveHistory(newHistory);
+      await pool.query(
+        `INSERT INTO calculations 
+        (id, timestamp, method, function_f, function_g, root, error, iterations, converged, message, params, label, user_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        ON CONFLICT (id) 
+        DO UPDATE SET
+          timestamp = EXCLUDED.timestamp,
+          method = EXCLUDED.method,
+          function_f = EXCLUDED.function_f,
+          function_g = EXCLUDED.function_g,
+          root = EXCLUDED.root,
+          error = EXCLUDED.error,
+          iterations = EXCLUDED.iterations,
+          converged = EXCLUDED.converged,
+          message = EXCLUDED.message,
+          params = EXCLUDED.params,
+          label = EXCLUDED.label,
+          user_id = EXCLUDED.user_id`,
+        [
+          item.id,
+          item.timestamp,
+          item.method,
+          item.functionF,
+          item.functionG || null,
+          item.root,
+          item.error,
+          JSON.stringify(item.iterations),
+          item.converged,
+          item.message,
+          JSON.stringify(item.params),
+          item.label || null,
+          (req as any).user.id
+        ]
+      );
       res.status(201).json({ success: true });
     } catch (err) {
-      console.error('Save History Error:', err);
-      res.status(500).json({ error: "Error al guardar el cálculo" });
+      console.error('Save Calculation Error:', err);
+      res.status(500).json({ error: "Error al guardar el cálculo: " + (err as Error).message });
     }
   });
 
   app.patch("/api/history/:id", authenticateToken, async (req, res) => {
+    if (!pool) return res.status(200).end();
     const safeId = sanitizeText(req.params.id, 80);
     const { label, ...otherData } = req.body;
     
     try {
-      const history = await loadHistory();
-      const index = history.findIndex(h => h.id === safeId && h.userId === (req as any).user.id);
-      if (index !== -1) {
-        if (Object.keys(otherData).length > 0) {
-          const item = sanitizeCalculationPayload({ ...otherData, label });
-          history[index] = { ...item, timestamp: Date.now(), userId: (req as any).user.id };
-        } else {
-          history[index].label = sanitizeText(label, 120);
-        }
-        await saveHistory(history);
+      if (Object.keys(otherData).length > 0) {
+        const item = sanitizeCalculationPayload({ ...otherData, label });
+        await pool.query(
+          `UPDATE calculations SET 
+            method = $1, function_f = $2, function_g = $3, root = $4, 
+            error = $5, iterations = $6, converged = $7, message = $8, 
+            params = $9, label = $10, timestamp = $11
+          WHERE id = $12 AND user_id = $13`,
+          [
+            item.method, item.functionF, item.functionG || null, item.root,
+            item.error, JSON.stringify(item.iterations), item.converged, 
+            item.message, JSON.stringify(item.params), label || item.label || null,
+            Date.now(), safeId, (req as any).user.id
+          ]
+        );
+      } else {
+        await pool.query(
+          "UPDATE calculations SET label = $1 WHERE id = $2 AND user_id = $3", 
+          [sanitizeText(label, 120), safeId, (req as any).user.id]
+        );
       }
       res.status(200).json({ success: true });
     } catch (err) {
-      console.error('Update History Error:', err);
+      console.error('Update Item Error:', err);
       res.status(500).json({ error: "No se pudo actualizar el registro" });
     }
   });
 
   app.delete("/api/history/:id", authenticateToken, async (req, res) => {
-    const safeId = sanitizeText(req.params.id, 80);
+    if (!pool) return res.status(200).end();
     try {
-      const history = await loadHistory();
-      const filtered = history.filter(h => !(h.id === safeId && h.userId === (req as any).user.id));
-      await saveHistory(filtered);
+      await pool.query(
+        "DELETE FROM calculations WHERE id = $1 AND user_id = $2", 
+        [sanitizeText(req.params.id, 80), (req as any).user.id]
+      );
       res.status(200).json({ success: true });
     } catch (err) {
       console.error('Delete History Error:', err);
@@ -373,10 +492,9 @@ async function startServer() {
   });
 
   app.delete("/api/history", authenticateToken, async (req, res) => {
+    if (!pool) return res.status(200).end();
     try {
-      const history = await loadHistory();
-      const filtered = history.filter(h => h.userId !== (req as any).user.id);
-      await saveHistory(filtered);
+      await pool.query("DELETE FROM calculations WHERE user_id = $1", [(req as any).user.id]);
       res.status(200).json({ success: true });
     } catch (err) {
       console.error('Clear History Error:', err);

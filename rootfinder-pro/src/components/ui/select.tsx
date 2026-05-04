@@ -17,20 +17,25 @@ const Select = ({ children, value, onValueChange }: { children: React.ReactNode,
 
 const SelectTrigger = React.forwardRef<
   HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement>
->(({ className, children, ...props }, ref) => (
-  <button
-    ref={ref}
-    className={cn(
-      "flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
-      className
-    )}
-    {...props}
-  >
-    {children}
-    <ChevronDown className="h-4 w-4 opacity-50" />
-  </button>
-))
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { value?: string; onValueChange?: (value: string) => void }
+>(({ className, children, value: _value, onValueChange: _onValueChange, ...props }, ref) => {
+  void _value;
+  void _onValueChange;
+
+  return (
+    <button
+      ref={ref}
+      className={cn(
+        "flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+        className
+      )}
+      {...props}
+    >
+      {children}
+      <ChevronDown className="h-4 w-4 opacity-50" />
+    </button>
+  );
+})
 SelectTrigger.displayName = "SelectTrigger"
 
 const SelectValue = ({ placeholder, value }: { placeholder?: string, value?: string }) => {

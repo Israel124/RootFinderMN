@@ -1,3 +1,5 @@
+export const RESOLUTION_HISTORY_KEY = 'rootfinder-resolution-history';
+export const RESOLUTION_HISTORY_UPDATED_EVENT = 'rootfinder-resolution-history-updated';
 export const SYSTEM_HISTORY_KEY = 'rootfinder-system-history';
 export const SYSTEM_HISTORY_UPDATED_EVENT = 'rootfinder-system-history-updated';
 export const TAYLOR_HISTORY_KEY = 'rootfinder-taylor-history';

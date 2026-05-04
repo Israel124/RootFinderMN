@@ -34,6 +34,19 @@ test('Bairstow factoriza x^3 + 3x^2 - x - 3 con las raices esperadas', () => {
   assert.ok(Math.abs(roots[2] - 1) < 1e-5);
 });
 
+test('Bairstow calcula valores iniciales automaticos usables', () => {
+  const initial = PolynomialMethods.estimateBairstowInitialValues([1, 3, -1, -3]);
+  assert.equal(Number.isFinite(initial.r0), true);
+  assert.equal(Number.isFinite(initial.s0), true);
+
+  const result = PolynomialMethods.bairstowFullRoots([1, 3, -1, -3], initial.r0, initial.s0, 1e-8, 50);
+  assert.equal(result.converged, true);
+  const roots = result.roots.map((root) => parseFloat(root)).sort((a, b) => a - b);
+  assert.ok(Math.abs(roots[0] + 3) < 1e-5);
+  assert.ok(Math.abs(roots[1] + 1) < 1e-5);
+  assert.ok(Math.abs(roots[2] - 1) < 1e-5);
+});
+
 test('Horner-Newton aproxima una raiz de x^3 + 3x^2 - x - 3', () => {
   const result = PolynomialMethods.hornerRoot([1, 3, -1, -3], 0.8, 1e-8, 30);
   assert.equal(result.converged, true);

@@ -433,10 +433,41 @@ export class PolynomialMethods {
     return { b, c, denominator };
   }
 
+  static estimateBairstowInitialValues(coeffs: number[]) {
+    if (coeffs.length < 3) {
+      return { r0: 0, s0: 0 };
+    }
+
+    const leading = coeffs[0];
+    const rFromLeadingTerms = coeffs[1] / leading;
+    const sFromLeadingTerms = coeffs[2] / leading;
+    const normalizedConstant = coeffs[coeffs.length - 1] / leading;
+    const degree = coeffs.length - 1;
+    const constantScale = Math.sign(normalizedConstant || -1) * Math.pow(Math.abs(normalizedConstant || 1), 2 / degree);
+
+    const candidates = [
+      { r0: rFromLeadingTerms, s0: sFromLeadingTerms },
+      { r0: -rFromLeadingTerms / Math.max(degree - 1, 1), s0: constantScale },
+      { r0: 0, s0: constantScale },
+      { r0: 0, s0: -1 },
+      { r0: 0, s0: 1 },
+    ];
+
+    for (const candidate of candidates) {
+      if (!Number.isFinite(candidate.r0) || !Number.isFinite(candidate.s0)) continue;
+      const { denominator } = this.bairstowStep(this.toPowerAscending(coeffs), candidate.r0, candidate.s0);
+      if (Number.isFinite(denominator) && Math.abs(denominator) > 1e-12) {
+        return candidate;
+      }
+    }
+
+    return { r0: 0, s0: -1 };
+  }
+
   static bairstowFullRoots(
     coeffs: number[],
-    r0: number,
-    s0: number,
+    r0: number = PolynomialMethods.estimateBairstowInitialValues(coeffs).r0,
+    s0: number = PolynomialMethods.estimateBairstowInitialValues(coeffs).s0,
     tol: number,
     maxIter: number,
   ): PolynomialRootResult {

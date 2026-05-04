@@ -29,6 +29,7 @@ import {
   POLYNOMIAL_HISTORY_KEY,
   POLYNOMIAL_HISTORY_UPDATED_EVENT,
 } from '@/lib/historyKeys';
+import { GeoGebraGraph } from '@/components/GeoGebraGraph';
 
 type PolynomialHistoryItem = PolynomialRootResult & {
   id: string;
@@ -140,6 +141,17 @@ export function PolynomialSection() {
     }
   }, [coefficients]);
 
+  const autoBairstowInitial = useMemo(() => {
+    if (!parsedCoefficients) return null;
+    return PolynomialMethods.estimateBairstowInitialValues(parsedCoefficients);
+  }, [parsedCoefficients]);
+
+  useEffect(() => {
+    if (method !== 'bairstow' || !autoBairstowInitial) return;
+    setR0(autoBairstowInitial.r0.toString());
+    setS0(autoBairstowInitial.s0.toString());
+  }, [autoBairstowInitial, method]);
+
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(POLYNOMIAL_HISTORY_KEY);
@@ -197,6 +209,30 @@ export function PolynomialSection() {
       hiddenComplexRoots: result?.hiddenComplexRoots ?? [],
     };
   }, [parsedCoefficients, result]);
+
+  const polynomialGraphRange = useMemo(() => {
+    if (!activeGraphData) return null;
+    const { coeffs, markers, realRoots } = activeGraphData;
+    const { xmin, xmax } = computeGraphDomain(markers, realRoots);
+    const step = (xmax - xmin) / 400;
+    const values: number[] = [0, ...markers.map((marker) => marker.y).filter(Number.isFinite)];
+
+    for (let x = xmin; x <= xmax; x += step) {
+      const y = PolynomialMethods.evaluatePolynomial(coeffs, x);
+      if (Number.isFinite(y)) values.push(y);
+    }
+
+    const minY = Math.min(...values);
+    const maxY = Math.max(...values);
+    const spanY = Math.max(maxY - minY, 1);
+
+    return {
+      xmin,
+      xmax,
+      ymin: minY - spanY * 0.18,
+      ymax: maxY + spanY * 0.18,
+    };
+  }, [activeGraphData]);
 
   useEffect(() => {
     const canvas = graphRef.current;
@@ -349,12 +385,14 @@ export function PolynomialSection() {
           break;
         }
         case 'bairstow': {
-          const initialR = parseFloat(r0);
-          const initialS = parseFloat(s0);
-          if (Number.isNaN(initialR) || Number.isNaN(initialS)) {
-            throw new Error('Ingresa valores numericos validos para r0 y s0.');
+          if (!autoBairstowInitial) {
+            throw new Error('No se pudieron calcular r0 y s0 automaticamente.');
           }
+          const initialR = autoBairstowInitial.r0;
+          const initialS = autoBairstowInitial.s0;
           calculatedResult = PolynomialMethods.bairstowFullRoots(coeffs, initialR, initialS, parsedTol, parsedMaxIter);
+          setR0(initialR.toString());
+          setS0(initialS.toString());
           break;
         }
         default:
@@ -524,12 +562,12 @@ export function PolynomialSection() {
             {method === 'bairstow' && (
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="r0">r0</Label>
-                  <Input id="r0" value={r0} onChange={(event) => setR0(event.target.value)} placeholder="-0.3333333333" className="bg-background/70" />
+                  <Label htmlFor="r0">r0 automatico</Label>
+                  <Input id="r0" value={autoBairstowInitial?.r0.toString() ?? r0} readOnly placeholder="-0.3333333333" className="bg-background/70" />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="s0">s0</Label>
-                  <Input id="s0" value={s0} onChange={(event) => setS0(event.target.value)} placeholder="-1" className="bg-background/70" />
+                  <Label htmlFor="s0">s0 automatico</Label>
+                  <Input id="s0" value={autoBairstowInitial?.s0.toString() ?? s0} readOnly placeholder="-1" className="bg-background/70" />
                 </div>
               </div>
             )}
@@ -623,9 +661,24 @@ export function PolynomialSection() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4 p-6">
-          <div className="overflow-hidden rounded-2xl border border-primary/20 bg-black">
-            <canvas ref={graphRef} width={1200} height={460} className="h-auto w-full min-h-[20rem] lg:min-h-[28rem]" />
-          </div>
+          <GeoGebraGraph
+            expressions={activeGraphData?.polynomialExpression ? [activeGraphData.polynomialExpression] : []}
+            points={(activeGraphData?.markers ?? []).map((marker) => ({
+              x: marker.x,
+              y: marker.y,
+              label: marker.label,
+            }))}
+            xMin={polynomialGraphRange?.xmin}
+            xMax={polynomialGraphRange?.xmax}
+            yMin={polynomialGraphRange?.ymin}
+            yMax={polynomialGraphRange?.ymax}
+            heightClassName="h-[28rem] lg:h-[34rem]"
+            fallback={
+              <div className="overflow-hidden rounded-2xl border border-primary/20 bg-black">
+                <canvas ref={graphRef} width={1200} height={460} className="h-auto w-full min-h-[20rem] lg:min-h-[28rem]" />
+              </div>
+            }
+          />
           <div className="flex flex-wrap gap-2 text-xs">
             <Badge className="bg-primary text-primary-foreground">P(x)</Badge>
             <Badge variant="outline">Semillas</Badge>

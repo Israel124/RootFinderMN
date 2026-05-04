@@ -50,7 +50,16 @@ export function buildTaylorResult(fx: string, center: string, order: string, eva
 
   for (let k = 0; k <= n; k += 1) {
     const derivativeExpression = MathEvaluator.getNthDerivativeExpression(fx, k);
-    const derivativeValue = MathEvaluator.evaluateNthDerivative(fx, k, { x: a });
+    let derivativeValue: number;
+    try {
+      derivativeValue = MathEvaluator.evaluateNthDerivative(fx, k, { x: a });
+    } catch {
+      throw new Error(`La derivada de orden ${k} no existe o no es finita en a = ${formatNumber(a)}.`);
+    }
+
+    if (!Number.isFinite(derivativeValue)) {
+      throw new Error(`La derivada de orden ${k} no existe o no es finita en a = ${formatNumber(a)}.`);
+    }
     const fact = factorial(k);
     const coefficient = derivativeValue / fact;
     const centeredTerm = k === 0 ? '1' : k === 1 ? `(x - ${formatNumber(a)})` : `(x - ${formatNumber(a)})^${k}`;
