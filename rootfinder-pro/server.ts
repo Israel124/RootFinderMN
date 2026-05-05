@@ -2,12 +2,23 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
-import fs from "fs/promises";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import pg from "pg";
 import type { AddressInfo } from "net";
 import { sendVerificationEmail } from "./src/lib/emailService.js";
+import {
+  clearHistory,
+  createUser,
+  deleteHistoryItem,
+  findUserByEmail,
+  initStorage,
+  listHistory,
+  markUserVerified,
+  saveHistoryItem,
+  storageMode,
+  updateUserVerificationCode,
+  updateHistoryItem,
+} from "./server-storage.js";
 
 dotenv.config();
 
@@ -17,42 +28,6 @@ const __dirname = path.dirname(__filename);
 const JWT_SECRET = process.env.JWT_SECRET || "default-secret-change-in-production";
 const HISTORY_FILE = path.join(__dirname, 'history.json');
 const USERS_FILE = path.join(__dirname, 'users.json');
-
-const { Pool } = pg;
-const pool = process.env.DATABASE_URL 
-  ? new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: {
-        rejectUnauthorized: false,
-      },
-    })
-  : null;
-
-async function loadUsers(): Promise<any[]> {
-  try {
-    const data = await fs.readFile(USERS_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
-}
-
-async function saveUsers(users: any[]): Promise<void> {
-  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2));
-}
-
-async function loadHistory(): Promise<any[]> {
-  try {
-    const data = await fs.readFile(HISTORY_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
-}
-
-async function saveHistory(history: any[]): Promise<void> {
-  await fs.writeFile(HISTORY_FILE, JSON.stringify(history, null, 2));
-}
 
 function authenticateToken(req: express.Request, res: express.Response, next: express.NextFunction) {
   const authHeader = req.headers['authorization'];
@@ -159,62 +134,32 @@ function sanitizeCalculationPayload(input: any) {
   };
 }
 
-async function ensureJsonFile(filePath: string) {
-  try {
-    await fs.access(filePath);
-  } catch {
-    await fs.writeFile(filePath, '[]', 'utf8');
+async function resendVerificationCode(email: string) {
+  const verificationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+  const updatedUser = await updateUserVerificationCode(USERS_FILE, email, verificationCode, expiresAt);
+
+  if (!updatedUser) {
+    return { codeSaved: false, emailSent: false, verificationCode: null, error: "No se pudo actualizar el codigo de verificacion" };
   }
+
+  const emailResult = await sendVerificationEmail(email, verificationCode);
+  if (!emailResult.success) {
+    console.error("Verification email resend failed:", emailResult.error);
+    return {
+      codeSaved: true,
+      emailSent: false,
+      verificationCode,
+      error: emailResult.error || "No se pudo enviar el email de verificacion",
+    };
+  }
+
+  return { codeSaved: true, emailSent: true, verificationCode: null, error: null };
 }
 
 async function initDb() {
   console.log("Initializing storage...");
-  await ensureJsonFile(USERS_FILE);
-  await ensureJsonFile(HISTORY_FILE);
-
-  if (!pool || !process.env.DATABASE_URL) {
-    console.warn("DATABASE_URL not found. Skipping DB initialization.");
-    return;
-  }
-
-  try {
-    const client = await pool.connect();
-    console.log("Database connection established.");
-    try {
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS calculations (
-          id UUID PRIMARY KEY,
-          timestamp BIGINT NOT NULL,
-          method TEXT NOT NULL,
-          function_f TEXT NOT NULL,
-          function_g TEXT,
-          root DOUBLE PRECISION,
-          error DOUBLE PRECISION,
-          iterations JSONB NOT NULL,
-          converged BOOLEAN NOT NULL,
-          message TEXT,
-          params JSONB NOT NULL,
-          label TEXT,
-          user_id TEXT
-        );
-      `);
-
-      // Migration: Add user_id column if it doesn't exist
-      await client.query(`
-        DO $$ 
-        BEGIN 
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='calculations' AND column_name='user_id') THEN
-            ALTER TABLE calculations ADD COLUMN user_id TEXT;
-          END IF;
-        END $$;
-      `);
-    } finally {
-      client.release();
-    }
-    console.log("PostgreSQL database initialized successfully.");
-  } catch (err) {
-    console.error("Error initializing PostgreSQL database:", err);
-  }
+  await initStorage(USERS_FILE, HISTORY_FILE);
 }
 
 async function startServer() {
@@ -236,10 +181,14 @@ async function startServer() {
 
   await initDb();
 
+  app.get("/health", (_req, res) => {
+    res.json({ status: "ok", storage: storageMode, timestamp: new Date().toISOString() });
+  });
+
   // Auth Routes
   app.post("/api/register", async (req, res) => {
     const { email, password } = req.body;
-    const safeEmail = sanitizeText(email, 100);
+    const safeEmail = sanitizeText(email, 100).toLowerCase();
     const safePassword = sanitizeText(password, 100);
 
     if (!safeEmail || !safePassword) {
@@ -247,8 +196,7 @@ async function startServer() {
     }
 
     try {
-      const users = await loadUsers();
-      const existingUser = users.find(u => u.email === safeEmail);
+      const existingUser = await findUserByEmail(USERS_FILE, safeEmail);
       if (existingUser) {
         return res.status(400).json({ error: "Usuario ya existe" });
       }
@@ -257,26 +205,26 @@ async function startServer() {
       const verificationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
 
-      const newUser = {
-        id: Date.now().toString(),
+      const newUser = await createUser(USERS_FILE, {
         email: safeEmail,
         password: hashedPassword,
         verified: false,
         verificationCode,
         expiresAt,
-        createdAt: Date.now()
-      };
+      });
 
       // Send verification email
       const emailResult = await sendVerificationEmail(safeEmail, verificationCode);
-      users.push(newUser);
-      await saveUsers(users);
 
       if (!emailResult.success) {
         console.error('Verification email failed:', emailResult.error);
-        return res.status(500).json({
+        return res.status(201).json({
           message: "Usuario registrado. No se pudo enviar el email de verificación.",
           warning: "No se pudo enviar el email de verificación. Usa el código mostrado para continuar.",
+          requiresVerification: true,
+          email: safeEmail,
+          emailSent: false,
+          verificationCode,
           emailError: emailResult.error,
         });
       }
@@ -290,7 +238,7 @@ async function startServer() {
 
   app.post("/api/login", async (req, res) => {
     const { email, password } = req.body;
-    const safeEmail = sanitizeText(email, 100);
+    const safeEmail = sanitizeText(email, 100).toLowerCase();
     const safePassword = sanitizeText(password, 100);
 
     if (!safeEmail || !safePassword) {
@@ -298,8 +246,7 @@ async function startServer() {
     }
 
     try {
-      const users = await loadUsers();
-      const user = users.find(u => u.email === safeEmail);
+      const user = await findUserByEmail(USERS_FILE, safeEmail);
       if (!user) {
         return res.status(400).json({ error: "Usuario no encontrado" });
       }
@@ -310,7 +257,17 @@ async function startServer() {
       }
 
       if (!user.verified) {
-        return res.status(400).json({ error: "Cuenta no verificada. Revisa tu email." });
+        const resendResult = await resendVerificationCode(safeEmail);
+        return res.status(resendResult.codeSaved ? 403 : 500).json({
+          error: resendResult.emailSent
+            ? "Cuenta no verificada. Te enviamos un nuevo codigo de verificacion."
+            : "Cuenta no verificada. No se pudo enviar el email, usa el codigo mostrado para continuar.",
+          requiresVerification: true,
+          email: safeEmail,
+          emailSent: resendResult.emailSent,
+          verificationCode: resendResult.verificationCode,
+          emailError: resendResult.error,
+        });
       }
 
       const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET);
@@ -323,36 +280,34 @@ async function startServer() {
 
   app.post("/api/verify", async (req, res) => {
     const { email, code } = req.body;
-    const safeEmail = sanitizeText(email, 100);
-    const safeCode = sanitizeText(code, 10);
+    const safeEmail = sanitizeText(email, 100).toLowerCase();
+    const safeCode = sanitizeText(code, 10).toUpperCase();
 
     if (!safeEmail || !safeCode) {
       return res.status(400).json({ error: "Email y código requeridos" });
     }
 
     try {
-      const users = await loadUsers();
-      const userIndex = users.findIndex(u => u.email === safeEmail);
-      if (userIndex === -1) {
+      const user = await findUserByEmail(USERS_FILE, safeEmail);
+      if (!user) {
         return res.status(400).json({ error: "Usuario no encontrado" });
       }
 
-      const user = users[userIndex];
       if (user.verified) {
         return res.status(400).json({ error: "Cuenta ya verificada" });
       }
 
-      if (user.verificationCode !== safeCode || Date.now() > user.expiresAt) {
+      if (user.verificationCode !== safeCode || !user.expiresAt || Date.now() > user.expiresAt) {
         return res.status(400).json({ error: "Código inválido o expirado" });
       }
 
-      user.verified = true;
-      delete user.verificationCode;
-      delete user.expiresAt;
-      await saveUsers(users);
+      const verifiedUser = await markUserVerified(USERS_FILE, safeEmail);
+      if (!verifiedUser) {
+        return res.status(400).json({ error: "Usuario no encontrado" });
+      }
 
-      const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET);
-      res.json({ token, user: { id: user.id, email: user.email } });
+      const token = jwt.sign({ id: verifiedUser.id, email: verifiedUser.email }, JWT_SECRET);
+      res.json({ token, user: { id: verifiedUser.id, email: verifiedUser.email } });
     } catch (err) {
       console.error('Verify Error:', err);
       res.status(500).json({ error: "Error al verificar cuenta" });
@@ -361,26 +316,8 @@ async function startServer() {
 
   // API Routes
   app.get("/api/history", authenticateToken, async (req, res) => {
-    if (!pool) return res.json([]);
     try {
-      const result = await pool.query(
-        "SELECT * FROM calculations WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 50",
-        [(req as any).user.id]
-      );
-      const history = result.rows.map(row => ({
-        id: row.id,
-        timestamp: Number(row.timestamp),
-        method: row.method,
-        functionF: row.function_f,
-        functionG: row.function_g,
-        root: row.root,
-        error: row.error,
-        iterations: row.iterations,
-        converged: row.converged,
-        message: row.message,
-        params: row.params,
-        label: row.label
-      }));
+      const history = await listHistory(HISTORY_FILE, (req as any).user.id);
       res.json(history);
     } catch (err) {
       console.error('Fetch History Error:', err);
@@ -389,7 +326,6 @@ async function startServer() {
   });
 
   app.post("/api/history", authenticateToken, async (req, res) => {
-    if (!pool) return res.status(503).json({ error: "Base de datos no configurada" });
     let item;
     try {
       item = sanitizeCalculationPayload(req.body);
@@ -402,40 +338,7 @@ async function startServer() {
     }
 
     try {
-      await pool.query(
-        `INSERT INTO calculations 
-        (id, timestamp, method, function_f, function_g, root, error, iterations, converged, message, params, label, user_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        ON CONFLICT (id) 
-        DO UPDATE SET
-          timestamp = EXCLUDED.timestamp,
-          method = EXCLUDED.method,
-          function_f = EXCLUDED.function_f,
-          function_g = EXCLUDED.function_g,
-          root = EXCLUDED.root,
-          error = EXCLUDED.error,
-          iterations = EXCLUDED.iterations,
-          converged = EXCLUDED.converged,
-          message = EXCLUDED.message,
-          params = EXCLUDED.params,
-          label = EXCLUDED.label,
-          user_id = EXCLUDED.user_id`,
-        [
-          item.id,
-          item.timestamp,
-          item.method,
-          item.functionF,
-          item.functionG || null,
-          item.root,
-          item.error,
-          JSON.stringify(item.iterations),
-          item.converged,
-          item.message,
-          JSON.stringify(item.params),
-          item.label || null,
-          (req as any).user.id
-        ]
-      );
+      await saveHistoryItem(HISTORY_FILE, (req as any).user.id, item);
       res.status(201).json({ success: true });
     } catch (err) {
       console.error('Save Calculation Error:', err);
@@ -444,31 +347,15 @@ async function startServer() {
   });
 
   app.patch("/api/history/:id", authenticateToken, async (req, res) => {
-    if (!pool) return res.status(200).end();
     const safeId = sanitizeText(req.params.id, 80);
     const { label, ...otherData } = req.body;
     
     try {
       if (Object.keys(otherData).length > 0) {
         const item = sanitizeCalculationPayload({ ...otherData, label });
-        await pool.query(
-          `UPDATE calculations SET 
-            method = $1, function_f = $2, function_g = $3, root = $4, 
-            error = $5, iterations = $6, converged = $7, message = $8, 
-            params = $9, label = $10, timestamp = $11
-          WHERE id = $12 AND user_id = $13`,
-          [
-            item.method, item.functionF, item.functionG || null, item.root,
-            item.error, JSON.stringify(item.iterations), item.converged, 
-            item.message, JSON.stringify(item.params), label || item.label || null,
-            Date.now(), safeId, (req as any).user.id
-          ]
-        );
+        await updateHistoryItem(HISTORY_FILE, (req as any).user.id, safeId, item, sanitizeText(label, 120) || null);
       } else {
-        await pool.query(
-          "UPDATE calculations SET label = $1 WHERE id = $2 AND user_id = $3", 
-          [sanitizeText(label, 120), safeId, (req as any).user.id]
-        );
+        await updateHistoryItem(HISTORY_FILE, (req as any).user.id, safeId, null, sanitizeText(label, 120));
       }
       res.status(200).json({ success: true });
     } catch (err) {
@@ -478,12 +365,8 @@ async function startServer() {
   });
 
   app.delete("/api/history/:id", authenticateToken, async (req, res) => {
-    if (!pool) return res.status(200).end();
     try {
-      await pool.query(
-        "DELETE FROM calculations WHERE id = $1 AND user_id = $2", 
-        [sanitizeText(req.params.id, 80), (req as any).user.id]
-      );
+      await deleteHistoryItem(HISTORY_FILE, (req as any).user.id, sanitizeText(req.params.id, 80));
       res.status(200).json({ success: true });
     } catch (err) {
       console.error('Delete History Error:', err);
@@ -492,9 +375,8 @@ async function startServer() {
   });
 
   app.delete("/api/history", authenticateToken, async (req, res) => {
-    if (!pool) return res.status(200).end();
     try {
-      await pool.query("DELETE FROM calculations WHERE user_id = $1", [(req as any).user.id]);
+      await clearHistory(HISTORY_FILE, (req as any).user.id);
       res.status(200).json({ success: true });
     } catch (err) {
       console.error('Clear History Error:', err);

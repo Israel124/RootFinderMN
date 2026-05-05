@@ -84,8 +84,13 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
     try { data = JSON.parse(text); } catch { data = null; }
 
     if (response.ok) {
+      if (data?.verificationCode) {
+        setVerificationNote(`No se pudo enviar el correo. Usa este codigo para verificar: ${data.verificationCode}`);
+      } else {
+        setVerificationNote(data?.warning || null);
+      }
       setVerificationMode(true);
-      toast.success('Registro creado. Revisa tu correo para verificar la cuenta.');
+      toast.success(data?.emailSent === false ? 'Registro creado. Usa el codigo mostrado para verificar.' : 'Registro creado. Revisa tu correo para verificar la cuenta.');
     } else {
       const message = data?.error || data?.message || 'Error al registrar';
       toast.error(message);
