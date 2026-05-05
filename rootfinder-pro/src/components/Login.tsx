@@ -5,10 +5,13 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import {
+  ArrowLeft,
   ArrowRight,
+  BadgeCheck,
   Eye,
   EyeOff,
   Flame,
+  KeyRound,
   LoaderCircle,
   LockKeyhole,
   Mail,
@@ -39,11 +42,16 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [verificationMode, setVerificationMode] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationFallbackCode, setVerificationFallbackCode] = useState<string | null>(null);
+  const [verificationMessage, setVerificationMessage] = useState<string | null>(null);
 
   const emailStatus = useMemo(() => {
     if (!email) return 'Escribe tu correo institucional o personal';
     return /\S+@\S+\.\S+/.test(email) ? 'Correo listo para autenticarse' : 'Formato de correo invalido';
   }, [email]);
+  const normalizedVerificationCode = verificationCode.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
 
   const handleSubmit = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
@@ -66,11 +74,50 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
         toast.success('Bienvenido de nuevo');
       } else {
         const message = typeof data === 'object' && data !== null && 'error' in data ? (data as any).error : String(data || response.statusText);
-        toast.error(message || 'Error al iniciar sesion');
+        if (data && typeof data === 'object' && (data as any).requiresVerification) {
+          setVerificationMode(true);
+          setVerificationFallbackCode(typeof (data as any).verificationCode === 'string' ? (data as any).verificationCode : null);
+          setVerificationMessage(message || 'Cuenta pendiente de verificacion');
+          toast.info(message || 'Cuenta pendiente de verificacion');
+        } else {
+          toast.error(message || 'Error al iniciar sesion');
+        }
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Error de conexion';
       console.error('Login error:', error);
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async (e: { preventDefault: () => void }) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await fetch(apiUrl('/api/verify'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code: normalizedVerificationCode }),
+      });
+
+      const data = await parseResponse(response);
+
+      if (response.ok) {
+        if (data && typeof data === 'object') {
+          localStorage.setItem('token', (data as any).token);
+          onLogin((data as any).token, (data as any).user);
+        }
+        toast.success('Cuenta verificada exitosamente');
+      } else {
+        const message = typeof data === 'object' && data !== null && 'error' in data ? (data as any).error : String(data || response.statusText);
+        toast.error(message || 'Error al verificar');
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error de conexion';
+      console.error('Verify error:', error);
       toast.error(message);
     } finally {
       setLoading(false);
@@ -139,19 +186,98 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
             <div className="border-b border-white/8 px-7 py-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-100/60">Inicio de sesion</p>
-                  <h2 className="mt-3 text-3xl font-black text-white">Bienvenido otra vez</h2>
+                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-100/60">
+                    {verificationMode ? 'Verificacion' : 'Inicio de sesion'}
+                  </p>
+                  <h2 className="mt-3 text-3xl font-black text-white">
+                    {verificationMode ? 'Confirma tu cuenta' : 'Bienvenido otra vez'}
+                  </h2>
                   <p className="mt-3 text-sm leading-6 text-emerald-50/65">
-                    Usa tu cuenta para volver a tu historial, tus resultados y el espacio de trabajo numerico.
+                    {verificationMode
+                      ? 'Ingresa el codigo reenviado a tu correo para activar el acceso.'
+                      : 'Usa tu cuenta para volver a tu historial, tus resultados y el espacio de trabajo numerico.'}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-emerald-300/18 bg-emerald-300/10 p-3">
-                  <LockKeyhole className="h-5 w-5 text-emerald-300" />
+                  {verificationMode ? <BadgeCheck className="h-5 w-5 text-emerald-300" /> : <LockKeyhole className="h-5 w-5 text-emerald-300" />}
                 </div>
               </div>
             </div>
 
             <div className="px-7 py-7">
+              {verificationMode ? (
+                <form onSubmit={handleVerify} className="space-y-5">
+                  <div className="rounded-[1.4rem] border border-emerald-300/15 bg-emerald-300/10 p-4 text-sm leading-6 text-emerald-50/80">
+                    {verificationMessage || `Enviamos un nuevo codigo a ${email}. La cuenta existe, pero todavia necesita verificacion.`}
+                    {verificationFallbackCode ? (
+                      <div className="mt-3 rounded-2xl border border-amber-300/25 bg-amber-300/12 px-4 py-3 font-mono text-2xl font-black tracking-[0.35em] text-amber-100">
+                        {verificationFallbackCode}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="login-code" className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-100/72">
+                      Codigo de verificacion
+                    </Label>
+                    <div className="relative">
+                      <KeyRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-200/55" />
+                      <Input
+                        id="login-code"
+                        type="text"
+                        value={normalizedVerificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value)}
+                        required
+                        placeholder="ABC123"
+                        maxLength={6}
+                        className="h-16 rounded-2xl border-white/10 bg-white/6 pl-11 text-center font-mono text-2xl tracking-[0.45em] text-white placeholder:text-white/22 focus:border-emerald-300/50"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-6 gap-2">
+                    {Array.from({ length: 6 }).map((_, index) => (
+                      <div
+                        key={index}
+                        className={`flex h-12 items-center justify-center rounded-2xl border text-sm font-black transition ${
+                          normalizedVerificationCode[index]
+                            ? 'border-emerald-300/30 bg-emerald-300/12 text-emerald-200'
+                            : 'border-white/10 bg-white/5 text-white/35'
+                        }`}
+                      >
+                        {normalizedVerificationCode[index] || '*'}
+                      </div>
+                    ))}
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="h-14 w-full rounded-2xl bg-emerald-300 text-base font-black text-black shadow-lg shadow-emerald-500/20 transition hover:bg-cyan-300"
+                  >
+                    {loading ? (
+                      <>
+                        <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                        Verificando...
+                      </>
+                    ) : (
+                      <>
+                        Verificar y entrar
+                        <BadgeCheck className="ml-2 h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVerificationMode(false)}
+                    className="inline-flex items-center gap-2 text-sm font-bold text-emerald-200/80 transition hover:text-white"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Volver al login
+                  </button>
+                </form>
+              ) : (
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-100/72">
@@ -232,7 +358,9 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
                   )}
                 </Button>
               </form>
+              )}
 
+              {!verificationMode && (
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-[1.4rem] border border-emerald-300/12 bg-emerald-300/8 p-4">
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-100/60">Acceso</p>
@@ -243,13 +371,16 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
                   <p className="mt-2 text-sm text-emerald-50/75">Regresa directo a los modulos sin repetir configuracion.</p>
                 </div>
               </div>
+              )}
 
+              {!verificationMode && (
               <div className="mt-7 text-center text-sm text-white/58">
                 No tienes cuenta?{' '}
                 <button onClick={onSwitchToRegister} className="font-bold text-emerald-300 transition hover:text-cyan-300">
                   Crea una ahora
                 </button>
               </div>
+              )}
             </div>
           </CardContent>
         </Card>

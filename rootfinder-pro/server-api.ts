@@ -2,11 +2,23 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
-import fs from "fs/promises";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import type { AddressInfo } from "net";
 import { sendVerificationEmail } from "./src/lib/emailService.js";
+import {
+  clearHistory,
+  createUser,
+  deleteHistoryItem,
+  findUserByEmail,
+  initStorage,
+  listHistory,
+  markUserVerified,
+  saveHistoryItem,
+  storageMode,
+  updateUserVerificationCode,
+  updateHistoryItem,
+} from "./server-storage.js";
 
 dotenv.config();
 
@@ -14,47 +26,22 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const JWT_SECRET = process.env.JWT_SECRET || "default-secret-change-in-production";
-const HISTORY_FILE = path.join(__dirname, 'history.json');
-const USERS_FILE = path.join(__dirname, 'users.json');
-
-async function loadUsers(): Promise<any[]> {
-  try {
-    const data = await fs.readFile(USERS_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
-}
-
-async function saveUsers(users: any[]): Promise<void> {
-  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2));
-}
-
-async function loadHistory(): Promise<any[]> {
-  try {
-    const data = await fs.readFile(HISTORY_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
-}
-
-async function saveHistory(history: any[]): Promise<void> {
-  await fs.writeFile(HISTORY_FILE, JSON.stringify(history, null, 2));
-}
+const HISTORY_FILE = path.join(__dirname, "history.json");
+const USERS_FILE = path.join(__dirname, "users.json");
 
 function authenticateToken(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'Token requerido' });
+    return res.status(401).json({ error: "Token requerido" });
   }
 
   jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
     if (err) {
-      return res.status(403).json({ error: 'Token inválido' });
+      return res.status(403).json({ error: "Token invalido" });
     }
+
     (req as any).user = user;
     next();
   });
@@ -66,6 +53,11 @@ const ALLOWED_METHODS = new Set([
   "newton-raphson",
   "secant",
   "fixed-point",
+  "muller",
+  "bairstow",
+  "horner",
+  "taylor",
+  "newton-raphson-system",
 ]);
 
 function sanitizeText(value: unknown, maxLength: number) {
@@ -116,45 +108,51 @@ function sanitizeIterations(input: unknown) {
 
 function sanitizeCalculationPayload(input: any) {
   if (!input || typeof input !== "object") {
-    throw new Error("Payload inválido");
+    throw new Error("Payload invalido");
   }
 
   const method = sanitizeText(input.method, 40);
   if (!ALLOWED_METHODS.has(method)) {
-    throw new Error("Método inválido");
+    throw new Error(`Metodo invalido: ${method}`);
   }
-
-  const iterations = sanitizeIterations(input.iterations);
-  const params = sanitizeJsonRecord(input.params);
 
   return {
     id: sanitizeText(input.id, 80),
     timestamp: Number.isFinite(Number(input.timestamp)) ? Number(input.timestamp) : Date.now(),
     method,
-    functionF: sanitizeText(input.functionF, 1000),
-    functionG: sanitizeText(input.functionG, 1000) || null,
-    root: input.root === null ? null : sanitizeNumber(input.root),
-    error: input.error === null ? null : sanitizeNumber(input.error),
-    iterations,
+    functionF: sanitizeText(input.functionF || input.functionF1 || input.fx || "", 2000),
+    functionG: sanitizeText(input.functionG || input.functionF2 || "", 2000) || null,
+    root: input.root === null || input.root === undefined ? (input.solution?.x ?? null) : sanitizeNumber(input.root),
+    error: input.error === null || input.error === undefined ? null : sanitizeNumber(input.error),
+    iterations: sanitizeIterations(input.iterations),
     converged: Boolean(input.converged),
-    message: sanitizeText(input.message, 500),
-    params,
+    message: sanitizeText(input.message, 1000),
+    params: sanitizeJsonRecord(input.params),
     label: sanitizeText(input.label, 120) || null,
   };
 }
 
-async function ensureJsonFile(filePath: string) {
-  try {
-    await fs.access(filePath);
-  } catch {
-    await fs.writeFile(filePath, '[]', 'utf8');
-  }
-}
+async function resendVerificationCode(email: string) {
+  const verificationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+  const updatedUser = await updateUserVerificationCode(USERS_FILE, email, verificationCode, expiresAt);
 
-async function initDb() {
-  console.log("Using local JSON file for persistence.");
-  await ensureJsonFile(USERS_FILE);
-  await ensureJsonFile(HISTORY_FILE);
+  if (!updatedUser) {
+    return { codeSaved: false, emailSent: false, verificationCode: null, error: "No se pudo actualizar el codigo de verificacion" };
+  }
+
+  const emailResult = await sendVerificationEmail(email, verificationCode);
+  if (!emailResult.success) {
+    console.error("Verification email resend failed:", emailResult.error);
+    return {
+      codeSaved: true,
+      emailSent: false,
+      verificationCode,
+      error: emailResult.error || "No se pudo enviar el email de verificacion",
+    };
+  }
+
+  return { codeSaved: true, emailSent: true, verificationCode: null, error: null };
 }
 
 async function startServer() {
@@ -163,8 +161,6 @@ async function startServer() {
 
   app.disable("x-powered-by");
   app.use(express.json({ limit: "200kb" }));
-
-  // CORS headers for production
   app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
@@ -181,144 +177,140 @@ async function startServer() {
     next();
   });
 
-  await initDb();
+  await initStorage(USERS_FILE, HISTORY_FILE);
 
-  // Health check
-  app.get("/health", (req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  app.get("/health", (_req, res) => {
+    res.json({ status: "ok", storage: storageMode, timestamp: new Date().toISOString() });
   });
 
-  // Auth Routes
   app.post("/api/register", async (req, res) => {
-    const { email, password } = req.body;
-    const safeEmail = sanitizeText(email, 100);
-    const safePassword = sanitizeText(password, 100);
+    const safeEmail = sanitizeText(req.body.email, 100).toLowerCase();
+    const safePassword = sanitizeText(req.body.password, 100);
 
     if (!safeEmail || !safePassword) {
-      return res.status(400).json({ error: "Email y contraseña requeridos" });
+      return res.status(400).json({ error: "Email y contrasena requeridos" });
     }
 
     try {
-      const users = await loadUsers();
-      const existingUser = users.find(u => u.email === safeEmail);
+      const existingUser = await findUserByEmail(USERS_FILE, safeEmail);
       if (existingUser) {
         return res.status(400).json({ error: "Usuario ya existe" });
       }
 
       const hashedPassword = await bcrypt.hash(safePassword, 10);
       const verificationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+      const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
 
-      const newUser = {
-        id: Date.now().toString(),
+      await createUser(USERS_FILE, {
         email: safeEmail,
         password: hashedPassword,
         verified: false,
         verificationCode,
         expiresAt,
-        createdAt: Date.now()
-      };
+      });
 
-      // Send verification email
       const emailResult = await sendVerificationEmail(safeEmail, verificationCode);
-      users.push(newUser);
-      await saveUsers(users);
-
       if (!emailResult.success) {
-        console.error('Verification email failed:', emailResult.error);
-        return res.status(500).json({
-          message: "Usuario registrado. No se pudo enviar el email de verificación.",
-          warning: "No se pudo enviar el email de verificación. Usa el código mostrado para continuar.",
+        console.error("Verification email failed:", emailResult.error);
+        return res.status(201).json({
+          message: "Usuario registrado. No se pudo enviar el email de verificacion.",
+          warning: "No se pudo enviar el email de verificacion. Usa el codigo mostrado para continuar.",
+          requiresVerification: true,
+          email: safeEmail,
+          emailSent: false,
+          verificationCode,
           emailError: emailResult.error,
         });
       }
 
       res.status(201).json({ message: "Usuario registrado. Revisa tu email para verificar la cuenta." });
     } catch (err) {
-      console.error('Register Error:', err);
+      console.error("Register Error:", err);
       res.status(500).json({ error: "Error al registrar usuario" });
     }
   });
 
   app.post("/api/login", async (req, res) => {
-    const { email, password } = req.body;
-    const safeEmail = sanitizeText(email, 100);
-    const safePassword = sanitizeText(password, 100);
+    const safeEmail = sanitizeText(req.body.email, 100).toLowerCase();
+    const safePassword = sanitizeText(req.body.password, 100);
 
     if (!safeEmail || !safePassword) {
-      return res.status(400).json({ error: "Email y contraseña requeridos" });
+      return res.status(400).json({ error: "Email y contrasena requeridos" });
     }
 
     try {
-      const users = await loadUsers();
-      const user = users.find(u => u.email === safeEmail);
+      const user = await findUserByEmail(USERS_FILE, safeEmail);
       if (!user) {
         return res.status(400).json({ error: "Usuario no encontrado" });
       }
 
       const validPassword = await bcrypt.compare(safePassword, user.password);
       if (!validPassword) {
-        return res.status(400).json({ error: "Contraseña incorrecta" });
+        return res.status(400).json({ error: "Contrasena incorrecta" });
       }
 
       if (!user.verified) {
-        return res.status(400).json({ error: "Cuenta no verificada. Revisa tu email." });
+        const resendResult = await resendVerificationCode(safeEmail);
+        return res.status(resendResult.codeSaved ? 403 : 500).json({
+          error: resendResult.emailSent
+            ? "Cuenta no verificada. Te enviamos un nuevo codigo de verificacion."
+            : "Cuenta no verificada. No se pudo enviar el email, usa el codigo mostrado para continuar.",
+          requiresVerification: true,
+          email: safeEmail,
+          emailSent: resendResult.emailSent,
+          verificationCode: resendResult.verificationCode,
+          emailError: resendResult.error,
+        });
       }
 
       const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET);
       res.json({ token, user: { id: user.id, email: user.email } });
     } catch (err) {
-      console.error('Login Error:', err);
-      res.status(500).json({ error: "Error al iniciar sesión" });
+      console.error("Login Error:", err);
+      res.status(500).json({ error: "Error al iniciar sesion" });
     }
   });
 
   app.post("/api/verify", async (req, res) => {
-    const { email, code } = req.body;
-    const safeEmail = sanitizeText(email, 100);
-    const safeCode = sanitizeText(code, 10);
+    const safeEmail = sanitizeText(req.body.email, 100).toLowerCase();
+    const safeCode = sanitizeText(req.body.code, 10).toUpperCase();
 
     if (!safeEmail || !safeCode) {
-      return res.status(400).json({ error: "Email y código requeridos" });
+      return res.status(400).json({ error: "Email y codigo requeridos" });
     }
 
     try {
-      const users = await loadUsers();
-      const userIndex = users.findIndex(u => u.email === safeEmail);
-      if (userIndex === -1) {
+      const user = await findUserByEmail(USERS_FILE, safeEmail);
+      if (!user) {
         return res.status(400).json({ error: "Usuario no encontrado" });
       }
 
-      const user = users[userIndex];
       if (user.verified) {
         return res.status(400).json({ error: "Cuenta ya verificada" });
       }
 
-      if (user.verificationCode !== safeCode || Date.now() > user.expiresAt) {
-        return res.status(400).json({ error: "Código inválido o expirado" });
+      if (user.verificationCode !== safeCode || !user.expiresAt || Date.now() > user.expiresAt) {
+        return res.status(400).json({ error: "Codigo invalido o expirado" });
       }
 
-      user.verified = true;
-      delete user.verificationCode;
-      delete user.expiresAt;
-      await saveUsers(users);
+      const verifiedUser = await markUserVerified(USERS_FILE, safeEmail);
+      if (!verifiedUser) {
+        return res.status(400).json({ error: "Usuario no encontrado" });
+      }
 
-      const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET);
-      res.json({ token, user: { id: user.id, email: user.email } });
+      const token = jwt.sign({ id: verifiedUser.id, email: verifiedUser.email }, JWT_SECRET);
+      res.json({ token, user: { id: verifiedUser.id, email: verifiedUser.email } });
     } catch (err) {
-      console.error('Verify Error:', err);
+      console.error("Verify Error:", err);
       res.status(500).json({ error: "Error al verificar cuenta" });
     }
   });
 
-  // API Routes
   app.get("/api/history", authenticateToken, async (req, res) => {
     try {
-      const history = await loadHistory();
-      const userHistory = history.filter(h => h.userId === (req as any).user.id);
-      res.json(userHistory.slice(0, 50));
+      res.json(await listHistory(HISTORY_FILE, (req as any).user.id));
     } catch (err) {
-      console.error('Load History Error:', err);
+      console.error("Load History Error:", err);
       res.status(500).json({ error: "No se pudo cargar el historial" });
     }
   });
@@ -332,19 +324,15 @@ async function startServer() {
     }
 
     if (!item.id || !item.method || !item.functionF) {
-      return res.status(400).json({ error: "Datos incompletos para guardar el cálculo" });
+      return res.status(400).json({ error: "Datos incompletos para guardar el calculo" });
     }
 
     try {
-      const history = await loadHistory();
-      const filtered = history.filter(h => h.id !== item.id || h.userId !== (req as any).user.id);
-      const newItem = { ...item, userId: (req as any).user.id };
-      const newHistory = [newItem, ...filtered].slice(0, 50);
-      await saveHistory(newHistory);
+      await saveHistoryItem(HISTORY_FILE, (req as any).user.id, item);
       res.status(201).json({ success: true });
     } catch (err) {
-      console.error('Save History Error:', err);
-      res.status(500).json({ error: "Error al guardar el cálculo" });
+      console.error("Save History Error:", err);
+      res.status(500).json({ error: "Error al guardar el calculo" });
     }
   });
 
@@ -353,45 +341,36 @@ async function startServer() {
     const { label, ...otherData } = req.body;
 
     try {
-      const history = await loadHistory();
-      const index = history.findIndex(h => h.id === safeId && h.userId === (req as any).user.id);
-      if (index !== -1) {
-        if (Object.keys(otherData).length > 0) {
-          const item = sanitizeCalculationPayload({ ...otherData, label });
-          history[index] = { ...item, timestamp: Date.now(), userId: (req as any).user.id };
-        } else {
-          history[index].label = sanitizeText(label, 120);
-        }
-        await saveHistory(history);
+      if (Object.keys(otherData).length > 0) {
+        const item = sanitizeCalculationPayload({ ...otherData, label });
+        await updateHistoryItem(HISTORY_FILE, (req as any).user.id, safeId, item, sanitizeText(label, 120) || null);
+      } else {
+        await updateHistoryItem(HISTORY_FILE, (req as any).user.id, safeId, null, sanitizeText(label, 120));
       }
+
       res.status(200).json({ success: true });
     } catch (err) {
-      console.error('Update History Error:', err);
+      console.error("Update History Error:", err);
       res.status(500).json({ error: "No se pudo actualizar el registro" });
     }
   });
 
   app.delete("/api/history/:id", authenticateToken, async (req, res) => {
-    const safeId = sanitizeText(req.params.id, 80);
     try {
-      const history = await loadHistory();
-      const filtered = history.filter(h => !(h.id === safeId && h.userId === (req as any).user.id));
-      await saveHistory(filtered);
+      await deleteHistoryItem(HISTORY_FILE, (req as any).user.id, sanitizeText(req.params.id, 80));
       res.status(200).json({ success: true });
     } catch (err) {
-      console.error('Delete History Error:', err);
+      console.error("Delete History Error:", err);
       res.status(500).json({ error: "Failed to delete item" });
     }
   });
 
   app.delete("/api/history", authenticateToken, async (req, res) => {
     try {
-      const history = await loadHistory();
-      const filtered = history.filter(h => h.userId !== (req as any).user.id);
-      await saveHistory(filtered);
+      await clearHistory(HISTORY_FILE, (req as any).user.id);
       res.status(200).json({ success: true });
     } catch (err) {
-      console.error('Clear History Error:', err);
+      console.error("Clear History Error:", err);
       res.status(500).json({ error: "Failed to clear history" });
     }
   });
