@@ -30,3 +30,32 @@ test('Newton-Raphson para sistema acepta ecuaciones con equality', () => {
   assert.ok(Math.abs(result.solution!.x - 1.8228756555) < 1e-6);
   assert.ok(Math.abs(result.solution!.y - 0.8228756555) < 1e-6);
 });
+
+test('Newton-Raphson para sistema resuelve sistemas n x n', () => {
+  const result = NumericalMethods.newtonRaphsonSystem(
+    ['x^2 - 4', 'y^2 - 9', 'z^2 - 16'],
+    ['x', 'y', 'z'],
+    [1.5, 2.5, 3.5],
+    1e-8,
+    30,
+  );
+
+  assert.equal(result.converged, true);
+  assert.ok(result.solution !== null);
+  assert.ok(Math.abs(result.solution!.values[0] - 2) < 1e-6);
+  assert.ok(Math.abs(result.solution!.values[1] - 3) < 1e-6);
+  assert.ok(Math.abs(result.solution!.values[2] - 4) < 1e-6);
+});
+
+test('Newton-Raphson para sistema detecta Jacobiana singular', () => {
+  const result = NumericalMethods.newtonRaphsonSystem(
+    ['x + y - 2', '2*x + 2*y - 4'],
+    ['x', 'y'],
+    [1, 1],
+    1e-8,
+    5,
+  );
+
+  assert.equal(result.converged, false);
+  assert.match(result.message, /Jacobiana singular/);
+});

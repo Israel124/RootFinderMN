@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertCircle, CheckCircle2, Download, FunctionSquare, History, LineChart, Pencil, Sigma, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { LOAD_SYSTEM_HISTORY_EVENT, SYSTEM_HISTORY_KEY, SYSTEM_HISTORY_UPDATED_EVENT } from '@/lib/historyKeys';
 import { MathEvaluator } from '@/lib/mathEvaluator';
 import { NumericalMethods } from '@/lib/numericalMethods';
-import { LOAD_SYSTEM_HISTORY_EVENT, SYSTEM_HISTORY_KEY, SYSTEM_HISTORY_UPDATED_EVENT } from '@/lib/historyKeys';
 import { SystemCalculationResult } from '@/types';
-import { AlertCircle, CheckCircle2, FunctionSquare, Sigma, History, LineChart, Pencil, Trash2, Download } from 'lucide-react';
-import { toast } from 'sonner';
 
 type SystemHistoryItem = SystemCalculationResult & {
   id: string;
@@ -19,11 +19,31 @@ type SystemHistoryItem = SystemCalculationResult & {
   label?: string;
 };
 
+const variableName = (index: number) => {
+  const names = ['x', 'y', 'z', 'w'];
+  return names[index] ?? `x${index + 1}`;
+};
+
+const defaultFunction = (index: number, n: number) => {
+  if (n === 2) return ['x^2 + y^2 - 4', 'x - y - 1'][index] ?? '';
+  return `${variableName(index)} - ${index + 1}`;
+};
+
+const formatNumber = (value: number) => {
+  if (!Number.isFinite(value)) return 'N/A';
+  return Math.abs(value) >= 1e5 || (Math.abs(value) > 0 && Math.abs(value) < 1e-4)
+    ? value.toExponential(6)
+    : value.toFixed(6);
+};
+
+const solutionValues = (result: SystemCalculationResult | null) => result?.solution?.values ?? [];
+
 export function NewtonSystemSection() {
-  const [f1, setF1] = useState('x^2 + y^2 - 4');
-  const [f2, setF2] = useState('x - y - 1');
-  const [x0, setX0] = useState('1.5');
-  const [y0, setY0] = useState('0.5');
+  const [dimensionText, setDimensionText] = useState('2');
+  const [dimension, setDimension] = useState(2);
+  const [variables, setVariables] = useState(['x', 'y']);
+  const [functions, setFunctions] = useState(['x^2 + y^2 - 4', 'x - y - 1']);
+  const [initialValues, setInitialValues] = useState(['1.5', '0.5']);
   const [tol, setTol] = useState('0.0001');
   const [maxIter, setMaxIter] = useState('25');
   const [result, setResult] = useState<SystemCalculationResult | null>(null);
@@ -36,9 +56,7 @@ export function NewtonSystemSection() {
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(SYSTEM_HISTORY_KEY);
-      if (raw) {
-        setHistory(JSON.parse(raw));
-      }
+      setHistory(raw ? JSON.parse(raw) : []);
     } catch {
       setHistory([]);
     }
@@ -48,13 +66,7 @@ export function NewtonSystemSection() {
     const handleExternalLoad = (event: Event) => {
       const detail = (event as CustomEvent<SystemHistoryItem>).detail;
       if (!detail) return;
-      setF1(detail.functionF1);
-      setF2(detail.functionF2);
-      setX0(detail.params.x0?.toString() ?? '');
-      setY0(detail.params.y0?.toString() ?? '');
-      setTol(detail.params.tol?.toString() ?? '');
-      setMaxIter(detail.params.maxIter?.toString() ?? '');
-      setResult(detail);
+      loadCalculation(detail);
     };
 
     window.addEventListener(LOAD_SYSTEM_HISTORY_EVENT, handleExternalLoad as EventListener);
@@ -71,70 +83,40 @@ export function NewtonSystemSection() {
   }, [history]);
 
   const preview = useMemo(() => {
-    const x = parseFloat(x0);
-    const y = parseFloat(y0);
-
-    if (!f1.trim() || !f2.trim() || Number.isNaN(x) || Number.isNaN(y)) {
-      return null;
-    }
+    const parsedValues = initialValues.map((value) => parseFloat(value));
+    if (functions.some((fn) => !fn.trim()) || parsedValues.some(Number.isNaN)) return null;
 
     try {
+      const scope = variables.reduce<Record<string, number>>((acc, variable, index) => {
+        acc[variable] = parsedValues[index];
+        return acc;
+      }, {});
+
       return {
-        f1Value: MathEvaluator.evaluateWithScope(f1, { x, y }),
-        f2Value: MathEvaluator.evaluateWithScope(f2, { x, y }),
-        df1dxExpr: MathEvaluator.getPartialDerivativeExpression(f1, 'x'),
-        df1dyExpr: MathEvaluator.getPartialDerivativeExpression(f1, 'y'),
-        df2dxExpr: MathEvaluator.getPartialDerivativeExpression(f2, 'x'),
-        df2dyExpr: MathEvaluator.getPartialDerivativeExpression(f2, 'y'),
-        j11: MathEvaluator.partialDerivative(f1, 'x', { x, y }),
-        j12: MathEvaluator.partialDerivative(f1, 'y', { x, y }),
-        j21: MathEvaluator.partialDerivative(f2, 'x', { x, y }),
-        j22: MathEvaluator.partialDerivative(f2, 'y', { x, y }),
+        fValues: functions.map((fn) => MathEvaluator.evaluateWithScope(fn, scope)),
+        derivatives: functions.map((fn) =>
+          variables.map((variable) => MathEvaluator.getPartialDerivativeExpression(fn, variable))
+        ),
+        jacobian: functions.map((fn) =>
+          variables.map((variable) => MathEvaluator.partialDerivative(fn, variable, scope))
+        ),
       };
     } catch {
       return null;
     }
-  }, [f1, f2, x0, y0]);
+  }, [functions, initialValues, variables]);
 
-  const handleCalculate = () => {
-    if (!f1.trim() || !f2.trim()) return toast.error('Debes ingresar las dos ecuaciones del sistema');
-
-    const x = parseFloat(x0);
-    const y = parseFloat(y0);
-    const tolerance = parseFloat(tol);
-    const iterations = parseInt(maxIter);
-
-    if (Number.isNaN(x) || Number.isNaN(y)) return toast.error('Los valores iniciales x0 y y0 deben ser numéricos');
-    if (Number.isNaN(tolerance) || tolerance <= 0) return toast.error('La tolerancia debe ser positiva');
-    if (Number.isNaN(iterations) || iterations <= 0) return toast.error('Las iteraciones máximas deben ser un entero positivo');
-
-    try {
-      MathEvaluator.evaluateWithScope(f1, { x, y });
-      MathEvaluator.evaluateWithScope(f2, { x, y });
-      const calculation = NumericalMethods.newtonRaphsonSystem2x2(f1, f2, x, y, tolerance, iterations);
-      setResult(calculation);
-      setHistory((current) => [
-        {
-          ...calculation,
-          id: crypto.randomUUID(),
-          timestamp: Date.now(),
-          label: historyLabel.trim(),
-        },
-        ...current,
-      ].slice(0, 15));
-      setHistoryLabel('');
-
-      if (calculation.converged) {
-        toast.success('Sistema resuelto con Newton-Raphson');
-      } else {
-        toast.warning(calculation.message);
-      }
-    } catch (error: any) {
-      toast.error('Error matemático: ' + error.message);
-    }
-  };
-
-  const columns = result?.iterations.length ? Object.keys(result.iterations[0]) : [];
+  const tableColumns = useMemo(() => {
+    if (!result?.iterations.length) return [];
+    return [
+      'iteration',
+      ...result.variables,
+      ...result.variables.map((variable) => `d${variable}`),
+      ...result.variables.map((variable) => `${variable}Next`),
+      'ea',
+      'er',
+    ];
+  }, [result]);
 
   useEffect(() => {
     const canvas = graphRef.current;
@@ -146,28 +128,24 @@ export function NewtonSystemSection() {
 
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      const width = Math.round(rect.width * dpr);
-      const height = Math.round(rect.height * dpr);
-
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
-      }
-
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, rect.width, rect.height);
       ctx.fillStyle = '#050807';
       ctx.fillRect(0, 0, rect.width, rect.height);
 
-      const points = result?.iterations.map((item) => ({ x: item.x, y: item.y })) ?? [];
-      if (result?.solution) {
-        points.push({ x: result.solution.x, y: result.solution.y });
-      }
+      const points = result?.iterations
+        .map((item) => item.vector ?? [])
+        .filter((item) => item.length >= 2)
+        .map((item) => ({ x: item[0], y: item[1] })) ?? [];
+      const solution = solutionValues(result);
+      if (solution.length >= 2) points.push({ x: solution[0], y: solution[1] });
 
       if (points.length === 0) {
         ctx.fillStyle = '#94a3b8';
         ctx.font = '14px sans-serif';
-        ctx.fillText('Calcula el sistema para ver la trayectoria iterativa.', 28, 40);
+        ctx.fillText('Calcula el sistema para ver la proyeccion en las dos primeras variables.', 28, 40);
         return;
       }
 
@@ -178,19 +156,16 @@ export function NewtonSystemSection() {
       let maxX = Math.max(...xs);
       let minY = Math.min(...ys);
       let maxY = Math.max(...ys);
-      const spanX = Math.max(maxX - minX, 0.5);
-      const spanY = Math.max(maxY - minY, 0.5);
-      const marginX = Math.max(spanX * 0.18, 0.5);
-      const marginY = Math.max(spanY * 0.18, 0.5);
+      const marginX = Math.max((maxX - minX) * 0.18, 0.5);
+      const marginY = Math.max((maxY - minY) * 0.18, 0.5);
       minX -= marginX;
       maxX += marginX;
       minY -= marginY;
       maxY += marginY;
-      const spanXWithMargin = Math.max(maxX - minX, 0.5);
-      const spanYWithMargin = Math.max(maxY - minY, 0.5);
-
-      const toPxX = (value: number) => padding + ((value - minX) / spanXWithMargin) * (rect.width - padding * 2);
-      const toPxY = (value: number) => rect.height - padding - ((value - minY) / spanYWithMargin) * (rect.height - padding * 2);
+      const spanX = Math.max(maxX - minX, 0.5);
+      const spanY = Math.max(maxY - minY, 0.5);
+      const toPxX = (value: number) => padding + ((value - minX) / spanX) * (rect.width - padding * 2);
+      const toPxY = (value: number) => rect.height - padding - ((value - minY) / spanY) * (rect.height - padding * 2);
 
       ctx.strokeStyle = '#1e292b';
       ctx.lineWidth = 1;
@@ -201,24 +176,11 @@ export function NewtonSystemSection() {
         ctx.beginPath();
         ctx.moveTo(xGuide, padding);
         ctx.lineTo(xGuide, rect.height - padding);
-        ctx.stroke();
-        ctx.beginPath();
         ctx.moveTo(padding, yGuide);
         ctx.lineTo(rect.width - padding, yGuide);
         ctx.stroke();
       }
       ctx.setLineDash([]);
-
-      const xAxisY = 0 >= minY && 0 <= maxY ? toPxY(0) : rect.height - padding;
-      const yAxisX = 0 >= minX && 0 <= maxX ? toPxX(0) : padding;
-      ctx.strokeStyle = '#475569';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(padding, xAxisY);
-      ctx.lineTo(rect.width - padding, xAxisY);
-      ctx.moveTo(yAxisX, padding);
-      ctx.lineTo(yAxisX, rect.height - padding);
-      ctx.stroke();
 
       ctx.strokeStyle = '#10b981';
       ctx.lineWidth = 3;
@@ -226,11 +188,8 @@ export function NewtonSystemSection() {
       points.forEach((point, index) => {
         const px = toPxX(point.x);
         const py = toPxY(point.y);
-        if (index === 0) {
-          ctx.moveTo(px, py);
-        } else {
-          ctx.lineTo(px, py);
-        }
+        if (index === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
       });
       ctx.stroke();
 
@@ -241,16 +200,7 @@ export function NewtonSystemSection() {
         ctx.beginPath();
         ctx.arc(px, py, index === points.length - 1 ? 6 : 4, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '12px sans-serif';
-        const label = index === points.length - 1 ? 'sol' : `i${index + 1}`;
-        ctx.fillText(label, px + 10, py - 10);
       });
-
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '12px sans-serif';
-      ctx.fillText(`x: [${minX.toFixed(3)}, ${maxX.toFixed(3)}]`, padding, rect.height - 16);
-      ctx.fillText(`y: [${minY.toFixed(3)}, ${maxY.toFixed(3)}]`, rect.width - 180, rect.height - 16);
     };
 
     drawGraph();
@@ -258,15 +208,74 @@ export function NewtonSystemSection() {
     return () => window.removeEventListener('resize', drawGraph);
   }, [result]);
 
-  const handleLoadHistory = (item: SystemHistoryItem) => {
-    setF1(item.functionF1);
-    setF2(item.functionF2);
-    setX0(item.params.x0?.toString() ?? '');
-    setY0(item.params.y0?.toString() ?? '');
+  const applyDimension = () => {
+    const nextDimension = Number(dimensionText);
+    if (!Number.isInteger(nextDimension) || nextDimension < 2) {
+      toast.error('El tamano del sistema debe ser un entero mayor o igual a 2');
+      return;
+    }
+
+    const nextVariables = Array.from({ length: nextDimension }, (_, index) => variables[index] ?? variableName(index));
+    setDimension(nextDimension);
+    setVariables(nextVariables);
+    setFunctions(Array.from({ length: nextDimension }, (_, index) => functions[index] ?? defaultFunction(index, nextDimension)));
+    setInitialValues(Array.from({ length: nextDimension }, (_, index) => initialValues[index] ?? '1'));
+    setResult(null);
+  };
+
+  const updateFunction = (index: number, value: string) => {
+    setFunctions((current) => current.map((item, currentIndex) => (currentIndex === index ? value : item)));
+  };
+
+  const updateInitialValue = (index: number, value: string) => {
+    setInitialValues((current) => current.map((item, currentIndex) => (currentIndex === index ? value : item)));
+  };
+
+  const handleCalculate = () => {
+    if (functions.some((fn) => !fn.trim())) return toast.error('Debes ingresar todas las ecuaciones del sistema');
+
+    const parsedValues = initialValues.map((value) => parseFloat(value));
+    const tolerance = parseFloat(tol);
+    const iterations = parseInt(maxIter, 10);
+
+    if (parsedValues.some(Number.isNaN)) return toast.error('Todos los valores iniciales deben ser numericos');
+    if (Number.isNaN(tolerance) || tolerance <= 0) return toast.error('La tolerancia debe ser positiva');
+    if (!Number.isInteger(iterations) || iterations <= 0) return toast.error('Las iteraciones maximas deben ser un entero positivo');
+
+    try {
+      const calculation = NumericalMethods.newtonRaphsonSystem(functions, variables, parsedValues, tolerance, iterations);
+      setResult(calculation);
+      setHistory((current) => [
+        {
+          ...calculation,
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          label: historyLabel.trim(),
+        },
+        ...current,
+      ].slice(0, 15));
+      setHistoryLabel('');
+      calculation.converged ? toast.success('Sistema resuelto con Newton-Raphson') : toast.warning(calculation.message);
+    } catch (error: any) {
+      toast.error('Error matematico: ' + error.message);
+    }
+  };
+
+  const loadCalculation = (item: SystemHistoryItem) => {
+    const loadedFunctions = item.functions ?? [item.functionF1, item.functionF2].filter(Boolean);
+    const loadedVariables = item.variables ?? ['x', 'y'];
+    const loadedInitialValues = item.params.initialValues ?? [item.params.x0, item.params.y0].filter((value: unknown) => value !== undefined);
+    const nextDimension = Math.max(loadedFunctions.length, loadedVariables.length, loadedInitialValues.length, 2);
+
+    setDimension(nextDimension);
+    setDimensionText(String(nextDimension));
+    setVariables(Array.from({ length: nextDimension }, (_, index) => loadedVariables[index] ?? variableName(index)));
+    setFunctions(Array.from({ length: nextDimension }, (_, index) => loadedFunctions[index] ?? defaultFunction(index, nextDimension)));
+    setInitialValues(Array.from({ length: nextDimension }, (_, index) => loadedInitialValues[index]?.toString() ?? '1'));
     setTol(item.params.tol?.toString() ?? '');
     setMaxIter(item.params.maxIter?.toString() ?? '');
     setResult(item);
-    toast.success('Cálculo del sistema cargado del historial');
+    toast.success('Calculo del sistema cargado del historial');
   };
 
   const handleClearHistory = () => {
@@ -276,51 +285,22 @@ export function NewtonSystemSection() {
     toast.success('Historial del sistema limpiado');
   };
 
-  const handleDeleteHistoryItem = (id: string) => {
-    setHistory((current) => current.filter((item) => item.id !== id));
-    if (editingId === id) {
-      setEditingId(null);
-      setEditingValue('');
-    }
-    toast.success('Registro eliminado');
-  };
-
-  const handleStartEdit = (item: SystemHistoryItem) => {
-    setEditingId(item.id);
-    setEditingValue(item.label ?? '');
-  };
-
-  const handleSaveEdit = (id: string) => {
-    setHistory((current) =>
-      current.map((item) => (item.id === id ? { ...item, label: editingValue.trim() } : item))
-    );
-    setEditingId(null);
-    setEditingValue('');
-    toast.success('Etiqueta actualizada');
-  };
-
   const handleExportHistory = () => {
-    if (history.length === 0) {
-      toast.error('No hay historial del sistema para exportar');
-      return;
-    }
+    if (history.length === 0) return toast.error('No hay historial del sistema para exportar');
 
-    const headers = ['Fecha', 'Etiqueta', 'F1', 'F2', 'x0', 'y0', 'x', 'y', 'Iteraciones', 'Convergencia'];
+    const headers = ['Fecha', 'Etiqueta', 'Dimension', 'Ecuaciones', 'Vector inicial', 'Solucion', 'Iteraciones', 'Convergencia'];
     const rows = history.map((item) => [
       new Date(item.timestamp).toLocaleString(),
       `"${item.label ?? ''}"`,
-      `"${item.functionF1}"`,
-      `"${item.functionF2}"`,
-      item.params.x0 ?? '',
-      item.params.y0 ?? '',
-      item.solution?.x ?? '',
-      item.solution?.y ?? '',
+      item.variables?.length ?? 2,
+      `"${(item.functions ?? [item.functionF1, item.functionF2]).join(' | ')}"`,
+      `"${(item.params.initialValues ?? [item.params.x0, item.params.y0]).join(' | ')}"`,
+      `"${solutionValues(item).map(formatNumber).join(' | ')}"`,
       item.iterations.length,
       item.converged ? 'Si' : 'No',
     ]);
 
-    const csv = [headers, ...rows].map((row) => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([[headers, ...rows].map((row) => row.join(',')).join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -332,6 +312,8 @@ export function NewtonSystemSection() {
     toast.success('Historial exportado');
   };
 
+  const solution = solutionValues(result);
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
@@ -341,89 +323,97 @@ export function NewtonSystemSection() {
               Newton-Raphson para Sistemas
             </CardTitle>
             <CardDescription className="max-w-3xl text-base">
-              Resuelve un sistema no lineal de dos ecuaciones con dos incógnitas y revisa el flujo iterativo:
-              evaluación del sistema, Jacobiana, corrección y actualización del vector.
+              Resuelve sistemas no lineales cuadrados n x n con Jacobiana dinamica y pivoteo parcial.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-8 p-6">
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-[1fr_auto]">
               <div className="space-y-3">
-                <Label htmlFor="f1-system" className="text-primary/70 font-bold uppercase text-[12px] tracking-widest">
-                  Ecuación F1(x, y)
+                <Label htmlFor="dimension-system" className="text-primary/70 font-bold uppercase text-[12px] tracking-widest">
+                  Numero de ecuaciones y variables
                 </Label>
                 <Input
-                  id="f1-system"
-                  value={f1}
-                  onChange={(e) => setF1(e.target.value)}
-                  className="h-12 bg-background/50 border-primary/20 font-mono text-base"
+                  id="dimension-system"
+                  type="number"
+                  min={2}
+                  step={1}
+                  value={dimensionText}
+                  onChange={(event) => setDimensionText(event.target.value)}
+                  className="h-12 bg-background/50 border-primary/20"
                 />
               </div>
-              <div className="space-y-3">
-                <Label htmlFor="f2-system" className="text-primary/70 font-bold uppercase text-[12px] tracking-widest">
-                  Ecuación F2(x, y)
-                </Label>
-                <Input
-                  id="f2-system"
-                  value={f2}
-                  onChange={(e) => setF2(e.target.value)}
-                  className="h-12 bg-background/50 border-primary/20 font-mono text-base"
-                />
-              </div>
+              <Button type="button" onClick={applyDimension} className="self-end h-12 px-6">
+                Aplicar tamano
+              </Button>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="space-y-3">
-                <Label htmlFor="x0-system" className="text-primary/70 font-bold uppercase text-[12px] tracking-widest">x0</Label>
-                <Input id="x0-system" type="number" step="any" value={x0} onChange={(e) => setX0(e.target.value)} className="h-12 bg-background/50 border-primary/20" />
-              </div>
-              <div className="space-y-3">
-                <Label htmlFor="y0-system" className="text-primary/70 font-bold uppercase text-[12px] tracking-widest">y0</Label>
-                <Input id="y0-system" type="number" step="any" value={y0} onChange={(e) => setY0(e.target.value)} className="h-12 bg-background/50 border-primary/20" />
-              </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {functions.map((fn, index) => (
+                <div className="space-y-3" key={index}>
+                  <Label htmlFor={`f-system-${index}`} className="text-primary/70 font-bold uppercase text-[12px] tracking-widest">
+                    {`Ecuacion F${index + 1}(${variables.join(', ')})`}
+                  </Label>
+                  <Input
+                    id={`f-system-${index}`}
+                    value={fn}
+                    onChange={(event) => updateFunction(index, event.target.value)}
+                    className="h-12 bg-background/50 border-primary/20 font-mono text-base"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {variables.map((variable, index) => (
+                <div className="space-y-3" key={variable}>
+                  <Label htmlFor={`initial-system-${variable}`} className="text-primary/70 font-bold uppercase text-[12px] tracking-widest">
+                    {`${variable}0`}
+                  </Label>
+                  <Input
+                    id={`initial-system-${variable}`}
+                    type="number"
+                    step="any"
+                    value={initialValues[index]}
+                    onChange={(event) => updateInitialValue(index, event.target.value)}
+                    className="h-12 bg-background/50 border-primary/20"
+                  />
+                </div>
+              ))}
               <div className="space-y-3">
                 <Label htmlFor="tol-system" className="text-primary/70 font-bold uppercase text-[12px] tracking-widest">Tolerancia</Label>
-                <Input id="tol-system" type="number" step="any" value={tol} onChange={(e) => setTol(e.target.value)} className="h-12 bg-background/50 border-primary/20" />
+                <Input id="tol-system" type="number" step="any" value={tol} onChange={(event) => setTol(event.target.value)} className="h-12 bg-background/50 border-primary/20" />
               </div>
               <div className="space-y-3">
-                <Label htmlFor="iter-system" className="text-primary/70 font-bold uppercase text-[12px] tracking-widest">Iteraciones Máx</Label>
-                <Input id="iter-system" type="number" value={maxIter} onChange={(e) => setMaxIter(e.target.value)} className="h-12 bg-background/50 border-primary/20" />
+                <Label htmlFor="iter-system" className="text-primary/70 font-bold uppercase text-[12px] tracking-widest">Iteraciones max</Label>
+                <Input id="iter-system" type="number" value={maxIter} onChange={(event) => setMaxIter(event.target.value)} className="h-12 bg-background/50 border-primary/20" />
               </div>
             </div>
 
             <div className="space-y-3">
               <Label htmlFor="label-system" className="text-primary/70 font-bold uppercase text-[12px] tracking-widest">Etiqueta del registro</Label>
-              <Input
-                id="label-system"
-                value={historyLabel}
-                onChange={(e) => setHistoryLabel(e.target.value)}
-                placeholder="Ej: sistema prueba 1"
-                className="h-12 bg-background/50 border-primary/20"
-              />
+              <Input id="label-system" value={historyLabel} onChange={(event) => setHistoryLabel(event.target.value)} placeholder="Ej: sistema 5x5" className="h-12 bg-background/50 border-primary/20" />
             </div>
 
             <div className="grid gap-4 lg:grid-cols-3">
-              <div className="rounded-3xl border border-primary/10 bg-background/35 p-5">
+              <div className="rounded-2xl border border-primary/10 bg-background/35 p-5">
                 <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/70">Paso 1</p>
-                <p className="mt-3 text-lg font-bold">Evalúa F(Xk)</p>
-                <p className="mt-2 text-sm text-muted-foreground">Se calcula el vector residual con las dos ecuaciones en el punto actual.</p>
+                <p className="mt-3 text-lg font-bold">Evalua F(Xk)</p>
+                <p className="mt-2 text-sm text-muted-foreground">Calcula el vector residual de las {dimension} ecuaciones.</p>
               </div>
-              <div className="rounded-3xl border border-primary/10 bg-background/35 p-5">
+              <div className="rounded-2xl border border-primary/10 bg-background/35 p-5">
                 <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/70">Paso 2</p>
                 <p className="mt-3 text-lg font-bold">Construye J(Xk)</p>
-                <p className="mt-2 text-sm text-muted-foreground">La Jacobiana se evalúa con derivadas parciales respecto a x y y.</p>
+                <p className="mt-2 text-sm text-muted-foreground">Evalua todas las derivadas parciales para la matriz {dimension} x {dimension}.</p>
               </div>
-              <div className="rounded-3xl border border-primary/10 bg-background/35 p-5">
+              <div className="rounded-2xl border border-primary/10 bg-background/35 p-5">
                 <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/70">Paso 3</p>
-                <p className="mt-3 text-lg font-bold">Actualiza Xk+1</p>
-                <p className="mt-2 text-sm text-muted-foreground">Se resuelve J(Xk)Δ = -F(Xk) y luego se aplica Xk+1 = Xk + Δ.</p>
+                <p className="mt-3 text-lg font-bold">Resuelve la correccion</p>
+                <p className="mt-2 text-sm text-muted-foreground">Usa eliminacion gaussiana con pivoteo para validar Jacobiana invertible.</p>
               </div>
             </div>
 
-            <Button
-              onClick={handleCalculate}
-              className="w-full py-8 text-xl font-bold shadow-xl hover:scale-[1.01] transition-transform bg-primary hover:bg-primary/85 text-primary-foreground"
-            >
-              Calcular Sistema
+            <Button onClick={handleCalculate} className="w-full py-8 text-xl font-bold shadow-xl hover:scale-[1.01] transition-transform bg-primary hover:bg-primary/85 text-primary-foreground">
+              Calcular Sistema {dimension}x{dimension}
             </Button>
           </CardContent>
         </Card>
@@ -437,15 +427,18 @@ export function NewtonSystemSection() {
             <CardContent className="space-y-4">
               <div className="rounded-2xl border border-primary/10 bg-background/30 p-4">
                 <p className="text-[10px] uppercase font-bold tracking-[0.25em] text-primary/60">Vector Inicial</p>
-                <p className="mt-2 font-mono text-sm">X0 = ({x0 || 'N/D'}, {y0 || 'N/D'})</p>
+                <p className="mt-2 font-mono text-sm">X0 = ({initialValues.join(', ')})</p>
               </div>
               <div className="rounded-2xl border border-primary/10 bg-background/30 p-4 space-y-2">
                 <div className="flex items-center gap-2">
                   <FunctionSquare className="h-4 w-4 text-primary" />
                   <p className="text-sm font-semibold">Sistema</p>
                 </div>
-                <p className="font-mono text-xs break-words [overflow-wrap:anywhere]">F1(x, y) = {f1 || 'N/D'}</p>
-                <p className="font-mono text-xs break-words [overflow-wrap:anywhere]">F2(x, y) = {f2 || 'N/D'}</p>
+                {functions.map((fn, index) => (
+                  <p className="font-mono text-xs break-words [overflow-wrap:anywhere]" key={index}>
+                    F{index + 1} = {fn || 'N/D'}
+                  </p>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -453,44 +446,38 @@ export function NewtonSystemSection() {
           <Card className="border-primary/10 bg-card/55 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="text-lg text-primary">Jacobiana en el Arranque</CardTitle>
-              <CardDescription>Matriz evaluada con el punto inicial actual y derivadas simbólicas usadas.</CardDescription>
+              <CardDescription>Matriz evaluada con el punto inicial actual.</CardDescription>
             </CardHeader>
             <CardContent>
               {preview ? (
                 <div className="space-y-4">
-                  <div className="grid gap-3">
-                    <div className="rounded-2xl border border-primary/10 bg-background/30 p-4">
-                      <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">∂F1/∂x</p>
-                      <p className="mt-2 font-mono text-sm break-words [overflow-wrap:anywhere]">{preview.df1dxExpr}</p>
-                    </div>
-                    <div className="rounded-2xl border border-primary/10 bg-background/30 p-4">
-                      <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">∂F1/∂y</p>
-                      <p className="mt-2 font-mono text-sm break-words [overflow-wrap:anywhere]">{preview.df1dyExpr}</p>
-                    </div>
-                    <div className="rounded-2xl border border-primary/10 bg-background/30 p-4">
-                      <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">∂F2/∂x</p>
-                      <p className="mt-2 font-mono text-sm break-words [overflow-wrap:anywhere]">{preview.df2dxExpr}</p>
-                    </div>
-                    <div className="rounded-2xl border border-primary/10 bg-background/30 p-4">
-                      <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">∂F2/∂y</p>
-                      <p className="mt-2 font-mono text-sm break-words [overflow-wrap:anywhere]">{preview.df2dyExpr}</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl border border-primary/10 bg-background/30 p-4 font-mono text-sm">{preview.j11.toFixed(6)}</div>
-                    <div className="rounded-2xl border border-primary/10 bg-background/30 p-4 font-mono text-sm">{preview.j12.toFixed(6)}</div>
-                    <div className="rounded-2xl border border-primary/10 bg-background/30 p-4 font-mono text-sm">{preview.j21.toFixed(6)}</div>
-                    <div className="rounded-2xl border border-primary/10 bg-background/30 p-4 font-mono text-sm">{preview.j22.toFixed(6)}</div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl border border-primary/10 bg-primary/5 p-4">
-                      <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">F1(X0)</p>
-                      <p className="mt-2 font-mono text-sm">{preview.f1Value.toFixed(6)}</p>
-                    </div>
-                    <div className="rounded-2xl border border-primary/10 bg-primary/5 p-4">
-                      <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">F2(X0)</p>
-                      <p className="mt-2 font-mono text-sm">{preview.f2Value.toFixed(6)}</p>
-                    </div>
+                  <ScrollArea className="max-h-[360px] rounded-xl border border-primary/10 bg-background/30">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead></TableHead>
+                          {variables.map((variable) => <TableHead key={variable}>d/d{variable}</TableHead>)}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {preview.jacobian.map((row, rowIndex) => (
+                          <TableRow key={rowIndex}>
+                            <TableCell className="font-mono text-xs">F{rowIndex + 1}</TableCell>
+                            {row.map((value, colIndex) => (
+                              <TableCell className="font-mono text-xs" key={colIndex}>{formatNumber(value)}</TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {preview.fValues.map((value, index) => (
+                      <div className="rounded-xl border border-primary/10 bg-primary/5 p-4" key={index}>
+                        <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">F{index + 1}(X0)</p>
+                        <p className="mt-2 font-mono text-sm">{formatNumber(value)}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ) : (
@@ -501,13 +488,13 @@ export function NewtonSystemSection() {
             </CardContent>
           </Card>
 
-          <Card className="border-primary/10 bg-card/55 backdrop-blur-sm xl:col-span-2">
+          <Card className="border-primary/10 bg-card/55 backdrop-blur-sm">
             <CardHeader>
               <div className="flex items-center gap-3">
                 <LineChart className="h-4 w-4 text-primary" />
                 <div>
-                  <CardTitle className="text-lg text-primary">Gráfica de Iteración</CardTitle>
-                  <CardDescription>Trayectoria del vector `(x, y)` hasta la solución, en un panel más amplio.</CardDescription>
+                  <CardTitle className="text-lg text-primary">Grafica de Iteracion</CardTitle>
+                  <CardDescription>Proyeccion sobre las dos primeras variables.</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -536,32 +523,20 @@ export function NewtonSystemSection() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-xl border border-primary/10 bg-background/50 p-4">
-                  <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">x*</p>
-                  <p className="mt-2 font-mono text-xl font-bold text-primary">
-                    {result.solution ? result.solution.x.toFixed(8) : 'N/A'}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-primary/10 bg-background/50 p-4">
-                  <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">y*</p>
-                  <p className="mt-2 font-mono text-xl font-bold text-primary">
-                    {result.solution ? result.solution.y.toFixed(8) : 'N/A'}
-                  </p>
-                </div>
+                {result.variables.map((variable, index) => (
+                  <div className="rounded-xl border border-primary/10 bg-background/50 p-4" key={variable}>
+                    <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">{variable}*</p>
+                    <p className="mt-2 font-mono text-xl font-bold text-primary">{solution[index] !== undefined ? formatNumber(solution[index]) : 'N/A'}</p>
+                  </div>
+                ))}
                 <div className="rounded-xl border border-primary/10 bg-background/50 p-4">
                   <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">Error Final</p>
-                  <p className="mt-2 font-mono text-xl font-bold text-secondary">
-                    {result.error !== null ? result.error.toExponential(4) : 'N/A'}
-                  </p>
+                  <p className="mt-2 font-mono text-xl font-bold text-secondary">{result.error !== null ? result.error.toExponential(4) : 'N/A'}</p>
                 </div>
                 <div className="rounded-xl border border-primary/10 bg-background/50 p-4">
                   <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">Estado</p>
                   <div className="mt-2 flex items-center gap-2">
-                    {result.converged ? (
-                      <CheckCircle2 className="h-5 w-5 text-primary" />
-                    ) : (
-                      <AlertCircle className="h-5 w-5 text-destructive" />
-                    )}
+                    {result.converged ? <CheckCircle2 className="h-5 w-5 text-primary" /> : <AlertCircle className="h-5 w-5 text-destructive" />}
                     <span className="text-xs font-medium leading-tight">{result.message}</span>
                   </div>
                 </div>
@@ -584,25 +559,22 @@ export function NewtonSystemSection() {
                 <Table>
                   <TableHeader className="sticky top-0 bg-card z-10 border-b border-primary/10">
                     <TableRow>
-                      {columns.map((column) => (
-                        <TableHead key={column} className="uppercase text-[10px] font-bold tracking-widest text-primary/70">
-                          {column}
-                        </TableHead>
+                      {tableColumns.map((column) => (
+                        <TableHead key={column} className="uppercase text-[10px] font-bold tracking-widest text-primary/70">{column}</TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {result.iterations.map((iteration, index) => (
                       <TableRow key={index} className="hover:bg-primary/5 transition-colors">
-                        {columns.map((column) => (
-                          <TableCell key={column} className="font-mono text-xs py-3">
-                            {typeof iteration[column as keyof typeof iteration] === 'number'
-                              ? column === 'iteration'
-                                ? String(iteration[column as keyof typeof iteration] as number)
-                                : (iteration[column as keyof typeof iteration] as number).toFixed(6)
-                              : iteration[column as keyof typeof iteration]}
-                          </TableCell>
-                        ))}
+                        {tableColumns.map((column) => {
+                          const value = iteration[column];
+                          return (
+                            <TableCell key={column} className="font-mono text-xs py-3">
+                              {typeof value === 'number' ? (column === 'iteration' ? String(value) : formatNumber(value)) : String(value ?? '')}
+                            </TableCell>
+                          );
+                        })}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -620,7 +592,7 @@ export function NewtonSystemSection() {
               <History className="h-5 w-5 text-primary" />
               <div>
                 <CardTitle className="text-primary">Historial del Sistema</CardTitle>
-                <CardDescription>Últimos cálculos guardados localmente en este navegador.</CardDescription>
+                <CardDescription>Ultimos calculos guardados localmente en este navegador.</CardDescription>
               </div>
             </div>
             <div className="flex gap-2">
@@ -637,39 +609,29 @@ export function NewtonSystemSection() {
         <CardContent>
           {history.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-primary/15 bg-background/30 p-4 text-sm text-muted-foreground">
-              Todavía no hay ejecuciones del sistema almacenadas.
+              Todavia no hay ejecuciones del sistema almacenadas.
             </div>
           ) : (
             <div className="space-y-3">
               {history.map((item) => (
-                <div
-                  key={item.id}
-                  className="grid w-full gap-3 rounded-2xl border border-primary/10 bg-background/35 p-4 text-left transition-all hover:border-primary/30 hover:bg-primary/5"
-                >
+                <div key={item.id} className="grid w-full gap-3 rounded-2xl border border-primary/10 bg-background/35 p-4 text-left transition-all hover:border-primary/30 hover:bg-primary/5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-widest text-primary/60">
-                        {new Date(item.timestamp).toLocaleString()}
-                      </p>
+                      <p className="text-xs font-bold uppercase tracking-widest text-primary/60">{new Date(item.timestamp).toLocaleString()}</p>
                       {editingId === item.id ? (
                         <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <Input
-                            value={editingValue}
-                            onChange={(e) => setEditingValue(e.target.value)}
-                            className="h-9 w-[220px] bg-background/50 border-primary/20"
-                            placeholder="Etiqueta del registro"
-                          />
-                          <Button size="sm" onClick={() => handleSaveEdit(item.id)}>Guardar</Button>
+                          <Input value={editingValue} onChange={(event) => setEditingValue(event.target.value)} className="h-9 w-[220px] bg-background/50 border-primary/20" placeholder="Etiqueta del registro" />
+                          <Button size="sm" onClick={() => {
+                            setHistory((current) => current.map((entry) => (entry.id === item.id ? { ...entry, label: editingValue.trim() } : entry)));
+                            setEditingId(null);
+                            setEditingValue('');
+                          }}>Guardar</Button>
                           <Button size="sm" variant="outline" onClick={() => { setEditingId(null); setEditingValue(''); }}>Cancelar</Button>
                         </div>
                       ) : (
                         <>
-                          <p className="mt-1 text-sm font-semibold">
-                            {item.label?.trim() || `x0 = ${item.params.x0}, y0 = ${item.params.y0}`}
-                          </p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            x0 = {item.params.x0}, y0 = {item.params.y0}
-                          </p>
+                          <p className="mt-1 text-sm font-semibold">{item.label?.trim() || `Sistema ${item.variables?.length ?? 2}x${item.variables?.length ?? 2}`}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">X0 = ({(item.params.initialValues ?? [item.params.x0, item.params.y0]).join(', ')})</p>
                         </>
                       )}
                     </div>
@@ -678,19 +640,23 @@ export function NewtonSystemSection() {
                     </Badge>
                   </div>
                   <div className="grid gap-2 md:grid-cols-2">
-                    <p className="font-mono text-xs break-words [overflow-wrap:anywhere]">F1 = {item.functionF1}</p>
-                    <p className="font-mono text-xs break-words [overflow-wrap:anywhere]">F2 = {item.functionF2}</p>
+                    {(item.functions ?? [item.functionF1, item.functionF2]).map((fn, index) => (
+                      <p className="font-mono text-xs break-words [overflow-wrap:anywhere]" key={index}>F{index + 1} = {fn}</p>
+                    ))}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Solución: {item.solution ? `(${item.solution.x.toFixed(6)}, ${item.solution.y.toFixed(6)})` : 'N/D'} · Iteraciones: {item.iterations.length}
+                    Solucion: {solutionValues(item).length ? `(${solutionValues(item).map(formatNumber).join(', ')})` : 'N/D'} · Iteraciones: {item.iterations.length}
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={() => handleLoadHistory(item)}>Cargar</Button>
-                    <Button size="sm" variant="outline" onClick={() => handleStartEdit(item)} className="border-primary/20 hover:bg-primary/10">
+                    <Button size="sm" onClick={() => loadCalculation(item)}>Cargar</Button>
+                    <Button size="sm" variant="outline" onClick={() => { setEditingId(item.id); setEditingValue(item.label ?? ''); }} className="border-primary/20 hover:bg-primary/10">
                       <Pencil className="mr-2 h-4 w-4" />
                       Editar
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleDeleteHistoryItem(item.id)} className="border-destructive/20 text-destructive hover:bg-destructive/10 hover:text-destructive">
+                    <Button size="sm" variant="outline" onClick={() => {
+                      setHistory((current) => current.filter((entry) => entry.id !== item.id));
+                      toast.success('Registro eliminado');
+                    }} className="border-destructive/20 text-destructive hover:bg-destructive/10 hover:text-destructive">
                       <Trash2 className="mr-2 h-4 w-4" />
                       Eliminar
                     </Button>

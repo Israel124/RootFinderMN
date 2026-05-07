@@ -443,6 +443,177 @@ export class NumericalMethods {
     return this.successResult('fixed-point', f, xi, iterations, converged, params, g);
   }
 
+  static newtonRaphsonSystem(
+    functions: string[],
+    variables: string[],
+    initialValues: number[],
+    tol: number,
+    maxIter: number
+  ): SystemCalculationResult {
+    const iterations: SystemIterationData[] = [];
+    let vector = [...initialValues];
+    let converged = false;
+    const params = { functions, variables, initialValues, tol, maxIter, n: functions.length };
+
+    if (functions.length < 2 || variables.length < 2) {
+      return this.systemNErrorResult('El sistema debe tener al menos 2 ecuaciones y 2 variables', params, functions, variables, iterations);
+    }
+
+    if (functions.length !== variables.length || initialValues.length !== variables.length) {
+      return this.systemNErrorResult('Newton-Raphson requiere un sistema cuadrado n x n', params, functions, variables, iterations);
+    }
+
+    for (let i = 1; i <= maxIter; i++) {
+      const scope = this.buildSystemScope(variables, vector);
+      const fValues = functions.map((fn) => MathEvaluator.evaluateWithScope(fn, scope));
+      const jacobian = functions.map((fn) =>
+        variables.map((variable) => MathEvaluator.partialDerivative(fn, variable, scope))
+      );
+
+      let delta: number[];
+      try {
+        delta = this.solveLinearSystem(jacobian, fValues.map((value) => -value));
+      } catch (error: any) {
+        return this.systemNErrorResult(error.message || 'Jacobiana singular o casi singular', params, functions, variables, iterations);
+      }
+
+      const nextVector = vector.map((value, index) => value + delta[index]);
+      const nextScope = this.buildSystemScope(variables, nextVector);
+      const nextFValues = functions.map((fn) => MathEvaluator.evaluateWithScope(fn, nextScope));
+      const ea = Math.max(...delta.map((value) => Math.abs(value)));
+      const denom = Math.max(...nextVector.map((value) => Math.abs(value)), 1);
+      const er = (ea / denom) * 100;
+      const iterationRow: SystemIterationData = {
+        iteration: i,
+        vector: [...vector],
+        fValues,
+        jacobian,
+        delta,
+        nextVector,
+        ea,
+        er: er.toFixed(6) + '%',
+      };
+
+      variables.forEach((variable, index) => {
+        iterationRow[variable] = vector[index];
+        iterationRow[`F${index + 1}`] = fValues[index];
+        iterationRow[`d${variable}`] = delta[index];
+        iterationRow[`${variable}Next`] = nextVector[index];
+      });
+
+      iterations.push(iterationRow);
+      vector = nextVector;
+
+      if (vector.some((value) => !isFinite(value))) {
+        return this.systemNErrorResult('La iteracion produjo valores no finitos', params, functions, variables, iterations);
+      }
+
+      if (ea <= tol || Math.max(...nextFValues.map((value) => Math.abs(value))) < 1e-15) {
+        converged = true;
+        break;
+      }
+    }
+
+    const lastIter = iterations[iterations.length - 1];
+    return {
+      functionF1: functions[0] ?? '',
+      functionF2: functions[1] ?? '',
+      functions,
+      variables,
+      solution: this.buildSystemSolution(variables, vector),
+      error: lastIter?.ea ?? null,
+      iterations,
+      converged,
+      message: converged
+        ? 'Convergencia alcanzada para el sistema'
+        : 'No se alcanzo la convergencia en el maximo de iteraciones',
+      params,
+    };
+  }
+
+  private static buildSystemScope(variables: string[], values: number[]): Record<string, number> {
+    return variables.reduce<Record<string, number>>((scope, variable, index) => {
+      scope[variable] = values[index];
+      return scope;
+    }, {});
+  }
+
+  private static buildSystemSolution(variables: string[], values: number[]) {
+    return variables.reduce<{ x?: number; y?: number; values: number[]; [key: string]: number | number[] | undefined }>(
+      (solution, variable, index) => {
+        solution[variable] = values[index];
+        return solution;
+      },
+      { values: [...values] }
+    );
+  }
+
+  private static solveLinearSystem(matrix: number[][], rhs: number[]): number[] {
+    const n = matrix.length;
+    const augmented = matrix.map((row, index) => [...row, rhs[index]]);
+    const scale = Math.max(1, ...matrix.flat().map((value) => Math.abs(value)));
+    const pivotTolerance = 1e-12 * scale;
+
+    for (let column = 0; column < n; column++) {
+      let pivotRow = column;
+      for (let row = column + 1; row < n; row++) {
+        if (Math.abs(augmented[row][column]) > Math.abs(augmented[pivotRow][column])) {
+          pivotRow = row;
+        }
+      }
+
+      if (Math.abs(augmented[pivotRow][column]) <= pivotTolerance) {
+        throw new Error('Jacobiana singular o casi singular; no hay solucion unica local en esta iteracion');
+      }
+
+      if (pivotRow !== column) {
+        [augmented[column], augmented[pivotRow]] = [augmented[pivotRow], augmented[column]];
+      }
+
+      for (let row = column + 1; row < n; row++) {
+        const factor = augmented[row][column] / augmented[column][column];
+        for (let col = column; col <= n; col++) {
+          augmented[row][col] -= factor * augmented[column][col];
+        }
+      }
+    }
+
+    const solution = new Array<number>(n).fill(0);
+    for (let row = n - 1; row >= 0; row--) {
+      let sum = augmented[row][n];
+      for (let col = row + 1; col < n; col++) {
+        sum -= augmented[row][col] * solution[col];
+      }
+      solution[row] = sum / augmented[row][row];
+      if (!Number.isFinite(solution[row])) {
+        throw new Error('La correccion del sistema no es finita');
+      }
+    }
+
+    return solution;
+  }
+
+  private static systemNErrorResult(
+    message: string,
+    params: Record<string, any>,
+    functions: string[],
+    variables: string[],
+    iterations: SystemIterationData[] = []
+  ): SystemCalculationResult {
+    return {
+      functionF1: functions[0] ?? '',
+      functionF2: functions[1] ?? '',
+      functions,
+      variables,
+      solution: null,
+      error: iterations[iterations.length - 1]?.ea ?? null,
+      iterations,
+      converged: false,
+      message,
+      params,
+    };
+  }
+
   static newtonRaphsonSystem2x2(
     f1: string,
     f2: string,
@@ -518,7 +689,9 @@ export class NumericalMethods {
     return {
       functionF1: f1,
       functionF2: f2,
-      solution: { x, y },
+      functions: [f1, f2],
+      variables: ['x', 'y'],
+      solution: { x, y, values: [x, y] },
       error: lastIter?.ea ?? null,
       iterations,
       converged,
@@ -539,6 +712,8 @@ export class NumericalMethods {
     return {
       functionF1: f1,
       functionF2: f2,
+      functions: [f1, f2],
+      variables: ['x', 'y'],
       solution: null,
       error: iterations[iterations.length - 1]?.ea ?? null,
       iterations,

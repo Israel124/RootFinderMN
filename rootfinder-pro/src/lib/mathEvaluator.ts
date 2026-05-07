@@ -51,7 +51,7 @@ export class MathEvaluator {
     // 3x -> 3*x, xy -> x*y, x3 -> x*3, 2sin(x) -> 2*sin(x)
     expr = expr.replace(/(\d(?:\.\d+)?)\s*([a-zA-Z(])/g, '$1*$2');
     expr = expr.replace(/\b([xy])\s*([xy])\b/g, '$1*$2');
-    expr = expr.replace(/\b([xy])\s*(\d)/g, '$1*$2');
+    expr = expr.replace(/\b([xy])\s+(\d)/g, '$1*$2');
     
     // Parentheses implicit multiplication: 3(x) -> 3*(x), (x)(y) -> (x)*(y), (x)3 -> (x)*3
     expr = expr.replace(/(\d|[xy])\s*\(/g, '$1*(');

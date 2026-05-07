@@ -73,7 +73,7 @@ const moduleMeta: Record<ModuleSection, { title: string; icon: typeof Sigma; des
   systems: {
     title: 'Sistemas',
     icon: Orbit,
-    description: 'Newton-Raphson 2x2 con trayectoria iterativa.',
+    description: 'Newton-Raphson n x n con trayectoria iterativa.',
   },
 };
 
@@ -332,10 +332,11 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate, o
 
             {section === 'systems' && (
               <>
-                <p className="font-mono text-xs break-words [overflow-wrap:anywhere]">F1 = {item.functionF1}</p>
-                <p className="font-mono text-xs break-words [overflow-wrap:anywhere]">F2 = {item.functionF2}</p>
+                {(item.functions ?? [item.functionF1, item.functionF2]).map((fn: string, index: number) => (
+                  <p className="font-mono text-xs break-words [overflow-wrap:anywhere]" key={index}>F{index + 1} = {fn}</p>
+                ))}
                 <p className="text-xs text-muted-foreground">
-                  Solucion: {item.solution ? `(${item.solution.x.toFixed(6)}, ${item.solution.y.toFixed(6)})` : 'N/D'}
+                  Solucion: {item.solution?.values ? `(${item.solution.values.map((value: number) => value.toFixed(6)).join(', ')})` : item.solution ? `(${item.solution.x.toFixed(6)}, ${item.solution.y.toFixed(6)})` : 'N/D'}
                 </p>
               </>
             )}

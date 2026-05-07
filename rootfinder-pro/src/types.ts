@@ -42,26 +42,22 @@ export interface CalculationResult {
 
 export interface SystemIterationData {
   iteration: number;
-  x: number;
-  y: number;
-  f1: number;
-  f2: number;
-  j11: number;
-  j12: number;
-  j21: number;
-  j22: number;
-  deltaX: number;
-  deltaY: number;
-  xNext: number;
-  yNext: number;
+  vector?: number[];
+  fValues?: number[];
+  jacobian?: number[][];
+  delta?: number[];
+  nextVector?: number[];
   ea: number;
   er: string;
+  [key: string]: number | string | number[] | number[][];
 }
 
 export interface SystemCalculationResult {
   functionF1: string;
   functionF2: string;
-  solution: { x: number; y: number } | null;
+  functions: string[];
+  variables: string[];
+  solution: ({ x?: number; y?: number; values: number[]; [key: string]: number | number[] | undefined }) | null;
   error: number | null;
   iterations: SystemIterationData[];
   converged: boolean;
