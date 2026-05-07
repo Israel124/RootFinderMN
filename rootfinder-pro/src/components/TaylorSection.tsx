@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,10 +8,19 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { MathEvaluator } from '@/lib/mathEvaluator';
 import { LOAD_TAYLOR_HISTORY_EVENT, TAYLOR_HISTORY_KEY, TAYLOR_HISTORY_UPDATED_EVENT } from '@/lib/historyKeys';
-import { Sigma, FunctionSquare, Calculator, LineChart, History, Pencil, Trash2 } from 'lucide-react';
+import { Sigma, FunctionSquare, Calculator, LineChart, History, Pencil, RefreshCw, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildTaylorResult, TaylorResult } from '@/lib/taylor';
 import { GeoGebraGraph } from '@/components/GeoGebraGraph';
+
+function niceStep(range: number, ticks: number) {
+  const safeRange = Math.abs(range) <= 1e-12 ? 1 : Math.abs(range);
+  const rough = safeRange / Math.max(ticks, 1);
+  const p = Math.pow(10, Math.floor(Math.log10(rough)));
+  const n = rough / p;
+  const step = (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * p;
+  return step || 1;
+}
 
 type TaylorHistoryItem = TaylorResult & {
   id: string;
@@ -30,7 +39,18 @@ export function TaylorSection() {
   const [historyLabel, setHistoryLabel] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
+  const [graphZoom, setGraphZoom] = useState(1);
   const graphRef = useRef<HTMLCanvasElement | null>(null);
+  const [graphHover, setGraphHover] = useState<{ x: number; y: number; mathX: number; mathY: number } | null>(null);
+  const graphBoundsRef = useRef<{
+    xmin: number;
+    xmax: number;
+    ymin: number;
+    spanY: number;
+    padding: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   useEffect(() => {
     try {
@@ -75,6 +95,15 @@ export function TaylorSection() {
     return { xmin: min, xmax: max };
   }, [center, evaluateAt]);
 
+  const zoomedGraphConfig = useMemo(() => {
+    const centerX = (graphConfig.xmin + graphConfig.xmax) / 2;
+    const spanX = Math.max((graphConfig.xmax - graphConfig.xmin) / graphZoom, 0.05);
+    return {
+      xmin: centerX - spanX / 2,
+      xmax: centerX + spanX / 2,
+    };
+  }, [graphConfig, graphZoom]);
+
   useEffect(() => {
     const canvas = graphRef.current;
     if (!canvas) return;
@@ -87,7 +116,7 @@ export function TaylorSection() {
     ctx.fillStyle = '#050807';
     ctx.fillRect(0, 0, width, height);
 
-    const { xmin, xmax } = graphConfig;
+    const { xmin, xmax } = zoomedGraphConfig;
     const step = (xmax - xmin) / 300;
     const samples: Array<{ x: number; fx: number; px: number }> = [];
 
@@ -128,19 +157,61 @@ export function TaylorSection() {
     const toPxX = (x: number) => padding + ((x - xmin) / (xmax - xmin)) * (width - padding * 2);
     const toPxY = (y: number) => height - padding - ((y - ymin) / spanY) * (height - padding * 2);
 
-    ctx.strokeStyle = '#1e292b';
+    graphBoundsRef.current = { xmin, xmax, ymin, spanY, padding, width, height };
+
+    // Rejilla con pasos "bonitos" (actualización visual, sin cambiar colores ni zoom).
+    const xStep = niceStep(xmax - xmin, 10);
+    const yStep = niceStep(spanY, 8);
+    ctx.strokeStyle = 'rgba(236, 253, 245, 0.05)';
     ctx.lineWidth = 1;
-    for (let i = 0; i < 5; i++) {
-      const xGuide = padding + (i / 4) * (width - padding * 2);
-      const yGuide = padding + (i / 4) * (height - padding * 2);
+    for (let gx = Math.ceil(xmin / xStep) * xStep; gx <= xmax; gx += xStep) {
+      const px = toPxX(gx);
       ctx.beginPath();
-      ctx.moveTo(xGuide, padding);
-      ctx.lineTo(xGuide, height - padding);
+      ctx.moveTo(px, padding);
+      ctx.lineTo(px, height - padding);
       ctx.stroke();
+    }
+    for (let gy = Math.ceil(ymin / yStep) * yStep; gy <= ymax; gy += yStep) {
+      const py = toPxY(gy);
       ctx.beginPath();
-      ctx.moveTo(padding, yGuide);
-      ctx.lineTo(width - padding, yGuide);
+      ctx.moveTo(padding, py);
+      ctx.lineTo(width - padding, py);
       ctx.stroke();
+    }
+
+    // Ejes (si 0 está dentro del rango visible)
+    ctx.strokeStyle = 'rgba(236, 253, 245, 0.14)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (xmin <= 0 && xmax >= 0) {
+      const px0 = toPxX(0);
+      ctx.moveTo(px0, padding);
+      ctx.lineTo(px0, height - padding);
+    }
+    if (ymin <= 0 && ymax >= 0) {
+      const py0 = toPxY(0);
+      ctx.moveTo(padding, py0);
+      ctx.lineTo(width - padding, py0);
+    }
+    ctx.stroke();
+
+    // Etiquetas sutiles
+    ctx.fillStyle = '#94a3b8';
+    ctx.font =
+      '11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+    ctx.textAlign = 'center';
+    const yAxisPx = ymin <= 0 && ymax >= 0 ? toPxY(0) : height - padding;
+    for (let gx = Math.ceil(xmin / xStep) * xStep; gx <= xmax; gx += xStep) {
+      if (Math.abs(gx) < 1e-10) continue;
+      const cy = Math.max(padding - 8, Math.min(height - 6, yAxisPx + 16));
+      ctx.fillText(Number(gx.toFixed(4)).toString(), toPxX(gx), cy);
+    }
+    ctx.textAlign = 'right';
+    const xAxisPx = xmin <= 0 && xmax >= 0 ? toPxX(0) : padding;
+    for (let gy = Math.ceil(ymin / yStep) * yStep; gy <= ymax; gy += yStep) {
+      if (Math.abs(gy) < 1e-10) continue;
+      const cx = Math.max(40, Math.min(width - 6, xAxisPx - 8));
+      ctx.fillText(Number(gy.toFixed(4)).toString(), cx, toPxY(gy) + 4);
     }
 
     ctx.strokeStyle = '#10b981';
@@ -181,7 +252,43 @@ export function TaylorSection() {
       ctx.fillStyle = '#f59e0b';
       ctx.fillText(`P${result.order}(x)`, padding + 56, 20);
     }
-  }, [fx, result, graphConfig]);
+  }, [fx, result, zoomedGraphConfig]);
+
+  const zoomTaylorGraph = (direction: 'in' | 'out') => {
+    setGraphZoom((current) => {
+      const next = direction === 'in' ? current * 1.25 : current / 1.25;
+      return Math.min(Math.max(next, 0.2), 80);
+    });
+  };
+
+  const handleGraphMouseMove = (event: ReactMouseEvent<HTMLCanvasElement>) => {
+    const bounds = graphBoundsRef.current;
+    const canvas = event.currentTarget;
+    if (!bounds) return;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    // Convertimos coords DOM -> coords internas del canvas
+    const scaleX = bounds.width / rect.width;
+    const scaleY = bounds.height / rect.height;
+    const cx = (event.clientX - rect.left) * scaleX;
+    const cy = (event.clientY - rect.top) * scaleY;
+
+    const plotW = bounds.width - bounds.padding * 2;
+    const plotH = bounds.height - bounds.padding * 2;
+    const rx = (cx - bounds.padding) / plotW;
+    const ry = (cy - bounds.padding) / plotH;
+    if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx < 0 || rx > 1 || ry < 0 || ry > 1) {
+      setGraphHover(null);
+      return;
+    }
+
+    const mathX = bounds.xmin + rx * (bounds.xmax - bounds.xmin);
+    const mathY = bounds.ymin + ((bounds.height - bounds.padding - cy) / plotH) * bounds.spanY;
+    setGraphHover({ x: event.clientX - rect.left, y: event.clientY - rect.top, mathX, mathY });
+  };
+
+  const handleGraphMouseLeave = () => setGraphHover(null);
 
   const previewResult = useMemo(() => {
     try {
@@ -397,11 +504,24 @@ export function TaylorSection() {
 
       <Card className="border-primary/10 bg-card/50 backdrop-blur-sm">
         <CardHeader>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
             <LineChart className="h-5 w-5 text-primary" />
             <div>
               <CardTitle className="text-primary">Gráfica Comparativa</CardTitle>
               <CardDescription>Comparación visual entre la función original y el polinomio de Taylor.</CardDescription>
+            </div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="icon" onClick={() => zoomTaylorGraph('in')} title="Acercar grafica" aria-label="Acercar grafica">
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" onClick={() => zoomTaylorGraph('out')} title="Alejar grafica" aria-label="Alejar grafica">
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" onClick={() => setGraphZoom(1)} title="Restablecer vista" aria-label="Restablecer vista">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -409,12 +529,26 @@ export function TaylorSection() {
           <GeoGebraGraph
             expressions={activeResult ? [fx, activeResult.polynomial] : [fx]}
             points={activeResult ? [{ x: activeResult.evaluateAt, y: activeResult.approximation, label: 'P_n(x)' }] : []}
-            xMin={graphConfig.xmin}
-            xMax={graphConfig.xmax}
+            xMin={zoomedGraphConfig.xmin}
+            xMax={zoomedGraphConfig.xmax}
             heightClassName="h-[28rem] lg:h-[34rem]"
             fallback={
-              <div className="overflow-hidden rounded-2xl border border-primary/20 bg-black">
-                <canvas ref={graphRef} width={1200} height={460} className="h-auto w-full min-h-[20rem] lg:min-h-[28rem]" />
+              <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-black">
+                <canvas
+                  ref={graphRef}
+                  width={1200}
+                  height={460}
+                  className="h-auto w-full min-h-[20rem] lg:min-h-[28rem] cursor-crosshair"
+                  onMouseMove={handleGraphMouseMove}
+                  onMouseLeave={handleGraphMouseLeave}
+                />
+                {graphHover && (
+                  <div className="graph-tooltip" style={{ left: graphHover.x + 15, top: graphHover.y + 15 }}>
+                    <div className="font-mono font-bold text-primary-foreground/70 mb-0.5">Coordenadas</div>
+                    <div className="font-mono text-primary">x: {graphHover.mathX.toFixed(4)}</div>
+                    <div className="font-mono text-primary">y: {graphHover.mathY.toFixed(4)}</div>
+                  </div>
+                )}
               </div>
             }
           />
@@ -448,7 +582,7 @@ export function TaylorSection() {
             <CardContent>
               <ScrollArea className="h-[520px] rounded-xl border border-primary/10 bg-background/30">
                 <Table>
-                  <TableHeader className="sticky top-0 bg-card z-10 border-b border-primary/10">
+                  <TableHeader className="sticky top-0 bg-white/95 z-10 border-b border-primary/20 backdrop-blur-sm">
                     <TableRow>
                       <TableHead className="uppercase text-[10px] font-bold tracking-widest text-primary/70">k</TableHead>
                       <TableHead className="uppercase text-[10px] font-bold tracking-widest text-primary/70">f^(k)(x)</TableHead>

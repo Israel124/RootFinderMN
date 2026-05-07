@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,9 +14,12 @@ import {
   History,
   LineChart,
   Pencil,
+  RefreshCw,
   Sigma,
   Trash2,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import {
   PolynomialGraphMarker,
@@ -30,6 +33,21 @@ import {
   POLYNOMIAL_HISTORY_UPDATED_EVENT,
 } from '@/lib/historyKeys';
 import { GeoGebraGraph } from '@/components/GeoGebraGraph';
+
+function niceStep(range: number, ticks: number) {
+  const safeRange = Math.abs(range) <= 1e-12 ? 1 : Math.abs(range);
+  const rough = safeRange / Math.max(ticks, 1);
+  const p = Math.pow(10, Math.floor(Math.log10(rough)));
+  const n = rough / p;
+  const step = (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * p;
+  return step || 1;
+}
+
+function cssVar(name: string, fallback: string) {
+  if (typeof window === 'undefined') return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
 
 type PolynomialHistoryItem = PolynomialRootResult & {
   id: string;
@@ -131,7 +149,10 @@ export function PolynomialSection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [graphZoom, setGraphZoom] = useState(1);
   const graphRef = useRef<HTMLCanvasElement | null>(null);
+  const [graphHover, setGraphHover] = useState<{ x: number; y: number; mathX: number; mathY: number } | null>(null);
+  const graphBoundsRef = useRef<{ xmin: number; xmax: number; ymin: number; ymax: number; padding: number } | null>(null);
 
   const parsedCoefficients = useMemo(() => {
     try {
@@ -234,6 +255,22 @@ export function PolynomialSection() {
     };
   }, [activeGraphData]);
 
+  const zoomedPolynomialGraphRange = useMemo(() => {
+    if (!polynomialGraphRange) return null;
+
+    const centerX = (polynomialGraphRange.xmin + polynomialGraphRange.xmax) / 2;
+    const centerY = (polynomialGraphRange.ymin + polynomialGraphRange.ymax) / 2;
+    const spanX = Math.max((polynomialGraphRange.xmax - polynomialGraphRange.xmin) / graphZoom, 0.05);
+    const spanY = Math.max((polynomialGraphRange.ymax - polynomialGraphRange.ymin) / graphZoom, 0.05);
+
+    return {
+      xmin: centerX - spanX / 2,
+      xmax: centerX + spanX / 2,
+      ymin: centerY - spanY / 2,
+      ymax: centerY + spanY / 2,
+    };
+  }, [polynomialGraphRange, graphZoom]);
+
   useEffect(() => {
     const canvas = graphRef.current;
     if (!canvas || !activeGraphData) return;
@@ -254,12 +291,17 @@ export function PolynomialSection() {
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, rect.width, rect.height);
-      ctx.fillStyle = '#050807';
+      const muted = cssVar('--color-muted-foreground', '#94a3b8');
+      const background = cssVar('--color-background', '#050807');
+      ctx.fillStyle = background;
       ctx.fillRect(0, 0, rect.width, rect.height);
 
-      const { coeffs, markers, realRoots } = activeGraphData;
-      const { xmin, xmax } = computeGraphDomain(markers, realRoots);
+      const { coeffs, markers } = activeGraphData;
+      const range = zoomedPolynomialGraphRange;
+      if (!range) return;
+      const { xmin, xmax, ymin, ymax } = range;
       const padding = 42;
+      graphBoundsRef.current = { xmin, xmax, ymin, ymax, padding };
       const step = (xmax - xmin) / 500;
       const samples: Array<{ x: number; y: number }> = [];
 
@@ -277,38 +319,32 @@ export function PolynomialSection() {
         return;
       }
 
-      const markerYValues = markers.map((marker) => marker.y).filter((value) => Number.isFinite(value));
-      const values = [...samples.map((sample) => sample.y), ...markerYValues, 0];
-      let ymin = Math.min(...values);
-      let ymax = Math.max(...values);
-      const spanY = Math.max(ymax - ymin, 1);
-      ymin -= spanY * 0.18;
-      ymax += spanY * 0.18;
-      const finalSpanY = Math.max(ymax - ymin, 1);
-
       const toPxX = (value: number) => padding + ((value - xmin) / (xmax - xmin)) * (rect.width - padding * 2);
-      const toPxY = (value: number) => rect.height - padding - ((value - ymin) / finalSpanY) * (rect.height - padding * 2);
+      const toPxY = (value: number) => rect.height - padding - ((value - ymin) / (ymax - ymin)) * (rect.height - padding * 2);
 
-      ctx.strokeStyle = '#1e292b';
+      // Rejilla con pasos "bonitos" (parecida al ejemplo, pero no idéntica).
+      const xStep = niceStep(xmax - xmin, 10);
+      const yStep = niceStep(ymax - ymin, 8);
+      ctx.strokeStyle = 'rgba(236, 253, 245, 0.05)';
       ctx.lineWidth = 1;
-      ctx.setLineDash([6, 6]);
-      for (let i = 0; i < 5; i += 1) {
-        const xGuide = padding + (i / 4) * (rect.width - padding * 2);
-        const yGuide = padding + (i / 4) * (rect.height - padding * 2);
+      for (let gx = Math.ceil(xmin / xStep) * xStep; gx <= xmax; gx += xStep) {
+        const px = toPxX(gx);
         ctx.beginPath();
-        ctx.moveTo(xGuide, padding);
-        ctx.lineTo(xGuide, rect.height - padding);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(padding, yGuide);
-        ctx.lineTo(rect.width - padding, yGuide);
+        ctx.moveTo(px, padding);
+        ctx.lineTo(px, rect.height - padding);
         ctx.stroke();
       }
-      ctx.setLineDash([]);
+      for (let gy = Math.ceil(ymin / yStep) * yStep; gy <= ymax; gy += yStep) {
+        const py = toPxY(gy);
+        ctx.beginPath();
+        ctx.moveTo(padding, py);
+        ctx.lineTo(rect.width - padding, py);
+        ctx.stroke();
+      }
 
       const yAxisX = 0 >= xmin && 0 <= xmax ? toPxX(0) : padding;
       const xAxisY = 0 >= ymin && 0 <= ymax ? toPxY(0) : rect.height - padding;
-      ctx.strokeStyle = '#475569';
+      ctx.strokeStyle = 'rgba(236, 253, 245, 0.14)';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(padding, xAxisY);
@@ -316,6 +352,23 @@ export function PolynomialSection() {
       ctx.moveTo(yAxisX, padding);
       ctx.lineTo(yAxisX, rect.height - padding);
       ctx.stroke();
+
+      // Etiquetas de ejes (sutiles)
+      ctx.fillStyle = muted;
+      ctx.font =
+        '11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+      ctx.textAlign = 'center';
+      for (let gx = Math.ceil(xmin / xStep) * xStep; gx <= xmax; gx += xStep) {
+        if (Math.abs(gx) < 1e-10) continue;
+        const cy = Math.max(padding - 8, Math.min(rect.height - 6, xAxisY + 16));
+        ctx.fillText(Number(gx.toFixed(4)).toString(), toPxX(gx), cy);
+      }
+      ctx.textAlign = 'right';
+      for (let gy = Math.ceil(ymin / yStep) * yStep; gy <= ymax; gy += yStep) {
+        if (Math.abs(gy) < 1e-10) continue;
+        const cx = Math.max(40, Math.min(rect.width - 6, yAxisX - 8));
+        ctx.fillText(Number(gy.toFixed(4)).toString(), cx, toPxY(gy) + 4);
+      }
 
       ctx.strokeStyle = '#10b981';
       ctx.lineWidth = 3;
@@ -349,7 +402,35 @@ export function PolynomialSection() {
     drawGraph();
     window.addEventListener('resize', drawGraph);
     return () => window.removeEventListener('resize', drawGraph);
-  }, [activeGraphData]);
+  }, [activeGraphData, zoomedPolynomialGraphRange]);
+
+  const handleGraphMouseMove = (event: ReactMouseEvent<HTMLCanvasElement>) => {
+    const bounds = graphBoundsRef.current;
+    if (!bounds) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const plotW = rect.width - bounds.padding * 2;
+    const plotH = rect.height - bounds.padding * 2;
+    const rx = (x - bounds.padding) / plotW;
+    const ry = (y - bounds.padding) / plotH;
+    if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx < 0 || rx > 1 || ry < 0 || ry > 1) {
+      setGraphHover(null);
+      return;
+    }
+    const mathX = bounds.xmin + rx * (bounds.xmax - bounds.xmin);
+    const mathY = bounds.ymin + ((rect.height - bounds.padding - y) / plotH) * (bounds.ymax - bounds.ymin);
+    setGraphHover({ x, y, mathX, mathY });
+  };
+
+  const handleGraphMouseLeave = () => setGraphHover(null);
+
+  const zoomPolynomialGraph = (direction: 'in' | 'out') => {
+    setGraphZoom((current) => {
+      const next = direction === 'in' ? current * 1.25 : current / 1.25;
+      return Math.min(Math.max(next, 0.2), 80);
+    });
+  };
 
   const handleCalculate = () => {
     try {
@@ -652,11 +733,24 @@ export function PolynomialSection() {
 
       <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
         <CardHeader className="space-y-2 p-6">
-          <div className="flex items-center gap-3">
-            <LineChart className="h-5 w-5 text-primary" />
-            <div>
-              <CardTitle className="text-xl font-black">Grafica del polinomio</CardTitle>
-              <CardDescription>Curva P(x), semillas, iteraciones y raices reales del metodo activo.</CardDescription>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <LineChart className="h-5 w-5 text-primary" />
+              <div>
+                <CardTitle className="text-xl font-black">Grafica del polinomio</CardTitle>
+                <CardDescription>Curva P(x), semillas, iteraciones y raices reales del metodo activo.</CardDescription>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="icon" onClick={() => zoomPolynomialGraph('in')} title="Acercar grafica" aria-label="Acercar grafica">
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" onClick={() => zoomPolynomialGraph('out')} title="Alejar grafica" aria-label="Alejar grafica">
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" onClick={() => setGraphZoom(1)} title="Restablecer vista" aria-label="Restablecer vista">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -668,14 +762,28 @@ export function PolynomialSection() {
               y: marker.y,
               label: marker.label,
             }))}
-            xMin={polynomialGraphRange?.xmin}
-            xMax={polynomialGraphRange?.xmax}
-            yMin={polynomialGraphRange?.ymin}
-            yMax={polynomialGraphRange?.ymax}
+            xMin={zoomedPolynomialGraphRange?.xmin}
+            xMax={zoomedPolynomialGraphRange?.xmax}
+            yMin={zoomedPolynomialGraphRange?.ymin}
+            yMax={zoomedPolynomialGraphRange?.ymax}
             heightClassName="h-[28rem] lg:h-[34rem]"
             fallback={
-              <div className="overflow-hidden rounded-2xl border border-primary/20 bg-black">
-                <canvas ref={graphRef} width={1200} height={460} className="h-auto w-full min-h-[20rem] lg:min-h-[28rem]" />
+              <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-black">
+                <canvas
+                  ref={graphRef}
+                  width={1200}
+                  height={460}
+                  className="h-auto w-full min-h-[20rem] lg:min-h-[28rem] cursor-crosshair"
+                  onMouseMove={handleGraphMouseMove}
+                  onMouseLeave={handleGraphMouseLeave}
+                />
+                {graphHover && (
+                  <div className="graph-tooltip" style={{ left: graphHover.x + 15, top: graphHover.y + 15 }}>
+                    <div className="font-mono font-bold text-primary-foreground/70 mb-0.5">Coordenadas</div>
+                    <div className="font-mono text-primary">x: {graphHover.mathX.toFixed(4)}</div>
+                    <div className="font-mono text-primary">y: {graphHover.mathY.toFixed(4)}</div>
+                  </div>
+                )}
               </div>
             }
           />
@@ -707,7 +815,7 @@ export function PolynomialSection() {
           <CardContent className="p-6">
             <ScrollArea className="h-[520px] rounded-xl border border-primary/10 bg-background/30">
               <Table>
-                <TableHeader className="sticky top-0 bg-card z-10 border-b border-primary/10">
+                <TableHeader className="sticky top-0 bg-white/95 z-10 border-b border-primary/20 backdrop-blur-sm">
                   <TableRow>
                     <TableHead className="uppercase text-[10px] font-bold tracking-widest text-primary/70">Iteracion</TableHead>
                     <TableHead className="uppercase text-[10px] font-bold tracking-widest text-primary/70">Descripcion</TableHead>

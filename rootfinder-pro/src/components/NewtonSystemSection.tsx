@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Download, FunctionSquare, History, LineChart, Pencil, Sigma, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Download, FunctionSquare, History, LineChart, Pencil, RefreshCw, Sigma, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,21 @@ import { LOAD_SYSTEM_HISTORY_EVENT, SYSTEM_HISTORY_KEY, SYSTEM_HISTORY_UPDATED_E
 import { MathEvaluator } from '@/lib/mathEvaluator';
 import { NumericalMethods } from '@/lib/numericalMethods';
 import { SystemCalculationResult } from '@/types';
+
+function niceStep(range: number, ticks: number) {
+  const safeRange = Math.abs(range) <= 1e-12 ? 1 : Math.abs(range);
+  const rough = safeRange / Math.max(ticks, 1);
+  const p = Math.pow(10, Math.floor(Math.log10(rough)));
+  const n = rough / p;
+  const step = (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * p;
+  return step || 1;
+}
+
+function cssVar(name: string, fallback: string) {
+  if (typeof window === 'undefined') return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
 
 type SystemHistoryItem = SystemCalculationResult & {
   id: string;
@@ -51,6 +66,7 @@ export function NewtonSystemSection() {
   const [historyLabel, setHistoryLabel] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
+  const [graphZoom, setGraphZoom] = useState(1);
   const graphRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -132,7 +148,9 @@ export function NewtonSystemSection() {
       canvas.height = Math.round(rect.height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, rect.width, rect.height);
-      ctx.fillStyle = '#050807';
+      const background = cssVar('--color-background', '#050807');
+      const muted = cssVar('--color-muted-foreground', '#94a3b8');
+      ctx.fillStyle = background;
       ctx.fillRect(0, 0, rect.width, rect.height);
 
       const points = result?.iterations
@@ -162,25 +180,71 @@ export function NewtonSystemSection() {
       maxX += marginX;
       minY -= marginY;
       maxY += marginY;
-      const spanX = Math.max(maxX - minX, 0.5);
-      const spanY = Math.max(maxY - minY, 0.5);
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const spanX = Math.max((maxX - minX) / graphZoom, 0.05);
+      const spanY = Math.max((maxY - minY) / graphZoom, 0.05);
+      minX = centerX - spanX / 2;
+      maxX = centerX + spanX / 2;
+      minY = centerY - spanY / 2;
+      maxY = centerY + spanY / 2;
       const toPxX = (value: number) => padding + ((value - minX) / spanX) * (rect.width - padding * 2);
       const toPxY = (value: number) => rect.height - padding - ((value - minY) / spanY) * (rect.height - padding * 2);
 
-      ctx.strokeStyle = '#1e292b';
+      // Rejilla (parecida al ejemplo, pero adaptada a la vista del sistema).
+      const xStep = niceStep(spanX, 10);
+      const yStep = niceStep(spanY, 8);
+      ctx.strokeStyle = 'rgba(236, 253, 245, 0.05)';
       ctx.lineWidth = 1;
-      ctx.setLineDash([6, 6]);
-      for (let i = 0; i < 5; i++) {
-        const xGuide = padding + (i / 4) * (rect.width - padding * 2);
-        const yGuide = padding + (i / 4) * (rect.height - padding * 2);
+      for (let gx = Math.ceil(minX / xStep) * xStep; gx <= maxX; gx += xStep) {
+        const px = toPxX(gx);
         ctx.beginPath();
-        ctx.moveTo(xGuide, padding);
-        ctx.lineTo(xGuide, rect.height - padding);
-        ctx.moveTo(padding, yGuide);
-        ctx.lineTo(rect.width - padding, yGuide);
+        ctx.moveTo(px, padding);
+        ctx.lineTo(px, rect.height - padding);
         ctx.stroke();
       }
-      ctx.setLineDash([]);
+      for (let gy = Math.ceil(minY / yStep) * yStep; gy <= maxY; gy += yStep) {
+        const py = toPxY(gy);
+        ctx.beginPath();
+        ctx.moveTo(padding, py);
+        ctx.lineTo(rect.width - padding, py);
+        ctx.stroke();
+      }
+
+      // Ejes (si 0 cae dentro del rango)
+      ctx.strokeStyle = 'rgba(236, 253, 245, 0.14)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if (minX <= 0 && maxX >= 0) {
+        const xAxis = toPxX(0);
+        ctx.moveTo(xAxis, padding);
+        ctx.lineTo(xAxis, rect.height - padding);
+      }
+      if (minY <= 0 && maxY >= 0) {
+        const yAxis = toPxY(0);
+        ctx.moveTo(padding, yAxis);
+        ctx.lineTo(rect.width - padding, yAxis);
+      }
+      ctx.stroke();
+
+      // Etiquetas sutiles en ejes
+      ctx.fillStyle = muted;
+      ctx.font =
+        '11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+      ctx.textAlign = 'center';
+      const yAxisPx = minY <= 0 && maxY >= 0 ? toPxY(0) : rect.height - padding;
+      for (let gx = Math.ceil(minX / xStep) * xStep; gx <= maxX; gx += xStep) {
+        if (Math.abs(gx) < 1e-10) continue;
+        const cy = Math.max(padding - 8, Math.min(rect.height - 6, yAxisPx + 16));
+        ctx.fillText(Number(gx.toFixed(4)).toString(), toPxX(gx), cy);
+      }
+      ctx.textAlign = 'right';
+      const xAxisPx = minX <= 0 && maxX >= 0 ? toPxX(0) : padding;
+      for (let gy = Math.ceil(minY / yStep) * yStep; gy <= maxY; gy += yStep) {
+        if (Math.abs(gy) < 1e-10) continue;
+        const cx = Math.max(40, Math.min(rect.width - 6, xAxisPx - 8));
+        ctx.fillText(Number(gy.toFixed(4)).toString(), cx, toPxY(gy) + 4);
+      }
 
       ctx.strokeStyle = '#10b981';
       ctx.lineWidth = 3;
@@ -206,7 +270,14 @@ export function NewtonSystemSection() {
     drawGraph();
     window.addEventListener('resize', drawGraph);
     return () => window.removeEventListener('resize', drawGraph);
-  }, [result]);
+  }, [result, graphZoom]);
+
+  const zoomSystemGraph = (direction: 'in' | 'out') => {
+    setGraphZoom((current) => {
+      const next = direction === 'in' ? current * 1.25 : current / 1.25;
+      return Math.min(Math.max(next, 0.2), 80);
+    });
+  };
 
   const applyDimension = () => {
     const nextDimension = Number(dimensionText);
@@ -490,11 +561,24 @@ export function NewtonSystemSection() {
 
           <Card className="border-primary/10 bg-card/55 backdrop-blur-sm">
             <CardHeader>
-              <div className="flex items-center gap-3">
-                <LineChart className="h-4 w-4 text-primary" />
-                <div>
-                  <CardTitle className="text-lg text-primary">Grafica de Iteracion</CardTitle>
-                  <CardDescription>Proyeccion sobre las dos primeras variables.</CardDescription>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <LineChart className="h-4 w-4 text-primary" />
+                  <div>
+                    <CardTitle className="text-lg text-primary">Grafica de Iteracion</CardTitle>
+                    <CardDescription>Proyeccion sobre las dos primeras variables.</CardDescription>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="icon" onClick={() => zoomSystemGraph('in')} title="Acercar grafica" aria-label="Acercar grafica">
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={() => zoomSystemGraph('out')} title="Alejar grafica" aria-label="Alejar grafica">
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={() => setGraphZoom(1)} title="Restablecer vista" aria-label="Restablecer vista">
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -557,7 +641,7 @@ export function NewtonSystemSection() {
             <CardContent>
               <ScrollArea className="h-[520px] rounded-xl border border-primary/10 bg-background/30">
                 <Table>
-                  <TableHeader className="sticky top-0 bg-card z-10 border-b border-primary/10">
+                  <TableHeader className="sticky top-0 bg-white/95 z-10 border-b border-primary/20 backdrop-blur-sm">
                     <TableRow>
                       {tableColumns.map((column) => (
                         <TableHead key={column} className="uppercase text-[10px] font-bold tracking-widest text-primary/70">{column}</TableHead>

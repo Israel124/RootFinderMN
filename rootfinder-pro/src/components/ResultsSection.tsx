@@ -82,7 +82,7 @@ export function ResultsSection({ result }: ResultsSectionProps) {
         <CardContent>
           <ScrollArea className="h-[450px] rounded-xl border border-primary/10 bg-background/30">
             <Table>
-              <TableHeader className="sticky top-0 bg-card z-10 border-b border-primary/10">
+              <TableHeader className="sticky top-0 bg-white/95 z-10 border-b border-primary/20 backdrop-blur-sm">
                 <TableRow>
                   {columns.map((col) => (
                     <TableHead key={col} className="uppercase text-[10px] font-bold tracking-widest text-primary/70">

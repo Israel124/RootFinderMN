@@ -6,6 +6,13 @@ type GeoGebraPoint = {
   label: string;
 };
 
+type HoverCoords = {
+  x: number;
+  y: number;
+  mathX: number;
+  mathY: number;
+};
+
 interface GeoGebraGraphProps {
   expressions: string[];
   points?: GeoGebraPoint[];
@@ -79,6 +86,8 @@ export function GeoGebraGraph({
   const containerIdRef = useRef(`geogebra-${crypto.randomUUID()}`);
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [hover, setHover] = useState<HoverCoords | null>(null);
+  const enableHoverTooltip = !fallback;
 
   const commands = useMemo(() => {
     const expressionCommands = expressions
@@ -148,16 +157,31 @@ export function GeoGebraGraph({
     };
   }, [commands, fallback, xMax, xMin, yMax, yMin]);
 
-  if (fallback) {
-    return <>{fallback}</>;
-  }
-
   return (
-    <div className={`relative w-full overflow-hidden rounded-2xl border border-primary/20 bg-black ${heightClassName}`}>
+    <div
+      className={`relative w-full overflow-hidden rounded-2xl border border-primary/20 bg-black ${heightClassName}`}
+      onMouseMove={(event) => {
+        if (!enableHoverTooltip) return;
+        const rect = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        const mathX = xMin + (x / rect.width) * (xMax - xMin);
+        const mathY = yMax - (y / rect.height) * (yMax - yMin);
+        setHover({ x, y, mathX, mathY });
+      }}
+      onMouseLeave={() => setHover(null)}
+    >
       <div
         id={containerIdRef.current}
         className="absolute inset-0 h-full w-full text-sm text-muted-foreground"
       />
+      {enableHoverTooltip && hover && (
+        <div className="graph-tooltip" style={{ left: hover.x + 15, top: hover.y + 15 }}>
+          <div className="font-mono font-bold text-primary-foreground/70 mb-0.5">Coordenadas</div>
+          <div className="font-mono text-primary">x: {hover.mathX.toFixed(4)}</div>
+          <div className="font-mono text-primary">y: {hover.mathY.toFixed(4)}</div>
+        </div>
+      )}
       {(!loaded || failed) && (
         <div className="absolute inset-0 bg-black">
           {fallback ?? (

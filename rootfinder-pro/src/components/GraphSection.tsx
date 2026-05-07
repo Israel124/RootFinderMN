@@ -15,6 +15,21 @@ interface GraphSectionProps {
   root: number | null;
 }
 
+function niceStep(range: number, ticks: number) {
+  const safeRange = Math.abs(range) <= 1e-12 ? 1 : Math.abs(range);
+  const rough = safeRange / Math.max(ticks, 1);
+  const p = Math.pow(10, Math.floor(Math.log10(rough)));
+  const n = rough / p;
+  const step = (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * p;
+  return step || 1;
+}
+
+function cssVar(name: string, fallback: string) {
+  if (typeof window === 'undefined') return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
 export function GraphSection({ f, root }: GraphSectionProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fullCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,49 +68,73 @@ export function GraphSection({ f, root }: GraphSectionProps) {
 
     if (xmin >= xmax || ymin >= ymax) return;
 
-    // Clear
+    const primary = cssVar('--color-primary', '#10b981');
+    const background = cssVar('--color-background', '#050807');
+    const muted = cssVar('--color-muted-foreground', '#94a3b8');
+
+    // Clear + fondo (evita transparencias y hace la gráfica más consistente).
     ctx.clearRect(0, 0, drawWidth, drawHeight);
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, drawWidth, drawHeight);
 
     // Helpers to convert math coords to pixel coords
     const toPxX = (x: number) => ((x - xmin) / (xmax - xmin)) * drawWidth;
     const toPxY = (y: number) => drawHeight - ((y - ymin) / (ymax - ymin)) * drawHeight;
 
-    // Draw Grid
-    ctx.strokeStyle = '#131c19';
+    // Rejilla (tipo "lab") con pasos bonitos para no saturar el canvas.
+    const xStep = niceStep(xmax - xmin, 10);
+    const yStep = niceStep(ymax - ymin, 8);
+    ctx.strokeStyle = 'rgba(236, 253, 245, 0.05)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let x = Math.ceil(xmin); x <= xmax; x++) {
-      const px = toPxX(x);
+    for (let gx = Math.ceil(xmin / xStep) * xStep; gx <= xmax; gx += xStep) {
+      const px = toPxX(gx);
       ctx.moveTo(px, 0);
-      ctx.lineTo(px, height);
+      ctx.lineTo(px, drawHeight);
     }
-    for (let y = Math.ceil(ymin); y <= ymax; y++) {
-      const py = toPxY(y);
+    for (let gy = Math.ceil(ymin / yStep) * yStep; gy <= ymax; gy += yStep) {
+      const py = toPxY(gy);
       ctx.moveTo(0, py);
-      ctx.lineTo(width, py);
+      ctx.lineTo(drawWidth, py);
     }
     ctx.stroke();
 
     // Draw Axes
-    ctx.strokeStyle = '#1e292b';
+    ctx.strokeStyle = 'rgba(236, 253, 245, 0.14)';
     ctx.lineWidth = 2;
     ctx.beginPath();
     // X-axis
     const py0 = toPxY(0);
-    if (py0 >= 0 && py0 <= height) {
+    if (py0 >= 0 && py0 <= drawHeight) {
       ctx.moveTo(0, py0);
-      ctx.lineTo(width, py0);
+      ctx.lineTo(drawWidth, py0);
     }
     // Y-axis
     const px0 = toPxX(0);
-    if (px0 >= 0 && px0 <= width) {
+    if (px0 >= 0 && px0 <= drawWidth) {
       ctx.moveTo(px0, 0);
-      ctx.lineTo(px0, height);
+      ctx.lineTo(px0, drawHeight);
     }
     ctx.stroke();
 
+    // Etiquetas (sutiles) en ejes.
+    ctx.fillStyle = muted;
+    ctx.font = '11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+    ctx.textAlign = 'center';
+    for (let gx = Math.ceil(xmin / xStep) * xStep; gx <= xmax; gx += xStep) {
+      if (Math.abs(gx) < 1e-10) continue;
+      const cy = Math.max(14, Math.min(drawHeight - 6, toPxY(0) + 16));
+      ctx.fillText(Number(gx.toFixed(4)).toString(), toPxX(gx), cy);
+    }
+    ctx.textAlign = 'right';
+    for (let gy = Math.ceil(ymin / yStep) * yStep; gy <= ymax; gy += yStep) {
+      if (Math.abs(gy) < 1e-10) continue;
+      const cx = Math.max(40, Math.min(drawWidth - 6, toPxX(0) - 8));
+      ctx.fillText(Number(gy.toFixed(4)).toString(), cx, toPxY(gy) + 4);
+    }
+
     // Draw Function
-    ctx.strokeStyle = '#10b981';
+    ctx.strokeStyle = primary;
     ctx.lineWidth = 3;
     ctx.lineJoin = 'round';
     ctx.beginPath();
@@ -130,11 +169,40 @@ export function GraphSection({ f, root }: GraphSectionProps) {
       setCrossings(detectZeroCrossings(samples));
     }
 
+    // Cruces por cero (marcadores)
+    if (samples.length && ymin <= 0 && ymax >= 0) {
+      const detected = detectZeroCrossings(samples);
+      ctx.fillStyle = primary;
+      detected.forEach((xCross) => {
+        if (xCross < xmin || xCross > xmax) return;
+        const cx = toPxX(xCross);
+        const cy = toPxY(0);
+        ctx.beginPath();
+        ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+    }
+
     // Draw Root
     if (root !== null && root >= xmin && root <= xmax) {
       const px = toPxX(root);
       const py = toPxY(0);
       
+      // Línea guía (dashed) para ubicar la raíz sin cambiar el "acercamiento".
+      ctx.save();
+      ctx.setLineDash([6, 6]);
+      ctx.globalAlpha = 0.45;
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px, 0);
+      ctx.lineTo(px, drawHeight);
+      ctx.stroke();
+      ctx.restore();
+
       ctx.fillStyle = '#f59e0b';
       ctx.beginPath();
       ctx.arc(px, py, 8, 0, Math.PI * 2);
