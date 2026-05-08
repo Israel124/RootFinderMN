@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { MethodType, CalculationResult, FixedPointCandidate } from '@/types';
 import { NumericalMethods } from '@/lib/numericalMethods';
 import { MathEvaluator } from '@/lib/mathEvaluator';
+import { parseNumericInput } from '@/lib/numberParser';
 import { toast } from 'sonner';
 import { RefreshCcw, Sparkles, PenSquare, Sigma, Wand2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -51,10 +52,10 @@ export function MethodsSection({
   const [selectedManualExpression, setSelectedManualExpression] = useState('');
   const [selectedAutoExpression, setSelectedAutoExpression] = useState('');
 
-  const parsedA = a.trim() === '' ? NaN : parseFloat(a);
-  const parsedB = b.trim() === '' ? NaN : parseFloat(b);
-  const parsedX0 = x0.trim() === '' ? NaN : parseFloat(x0);
-  const parsedG1 = g1.trim() === '' ? NaN : parseFloat(g1);
+  const parsedA = parseNumericInput(a);
+  const parsedB = parseNumericInput(b);
+  const parsedX0 = parseNumericInput(x0);
+  const parsedG1 = parseNumericInput(g1);
   const fixedPointProbe = !Number.isNaN(parsedG1) ? parsedG1 : parsedX0;
   const hasValidFixedPointBase = method === 'fixed-point' && f.trim() && MathEvaluator.isValid(f) && !Number.isNaN(fixedPointProbe);
 
@@ -158,13 +159,13 @@ export function MethodsSection({
     if (!f.trim()) return toast.error('Ingresa una función f(x) en la pestaña de verificación');
     if (!MathEvaluator.isValid(f)) return toast.error('La función f(x) en la pestaña de verificación es inválida');
 
-    const t = parseFloat(tol);
+    const t = parseNumericInput(tol);
     const m = parseInt(maxIter);
-    const valA = parseFloat(a);
-    const valB = parseFloat(b);
-    const valX0 = parseFloat(x0);
-    const valX1 = parseFloat(x1);
-    const valG1 = parseFloat(g1);
+    const valA = parseNumericInput(a);
+    const valB = parseNumericInput(b);
+    const valX0 = parseNumericInput(x0);
+    const valX1 = parseNumericInput(x1);
+    const valG1 = parseNumericInput(g1);
 
     if (isNaN(t) || t <= 0) return toast.error('La tolerancia debe ser un número positivo');
     if (isNaN(m) || m <= 0) return toast.error('El número máximo de iteraciones debe ser un entero positivo');

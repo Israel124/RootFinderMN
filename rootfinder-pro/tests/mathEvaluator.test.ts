@@ -15,7 +15,7 @@ function assertApproximately(actual: number, expected: number, tolerance = STAND
 function assertEvaluationFails(expression: string, scope: Record<string, number> = { x: 1 }) {
   assert.throws(
     () => MathEvaluator.evaluateWithScope(expression, scope),
-    /No se pudo evaluar la expresion/,
+    /No se pudo evaluar la expresion|La función no está definida en /,
   );
 }
 
@@ -35,6 +35,16 @@ test('MathEvaluator calcula derivadas y derivadas de orden superior', () => {
 
 test('MathEvaluator rechaza expresiones invalidas', () => {
   assert.equal(MathEvaluator.isValid('sqrt('), false);
+});
+
+test('MathEvaluator distingue sintaxis valida de puntos no definidos', () => {
+  const expression = '1 / (x - 1) - e^(2x - 1) + sen(3x + 2)';
+
+  assert.equal(MathEvaluator.isValid(expression), true);
+  assert.throws(
+    () => MathEvaluator.evaluate(expression, 1),
+    /La función no está definida en x = 1/,
+  );
 });
 
 test('MathEvaluator acepta multiplicacion implicita con xy', () => {

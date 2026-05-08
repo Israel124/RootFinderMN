@@ -4,6 +4,15 @@ export class MathEvaluator {
   private static readonly compiledExpressionCache = new Map<string, math.EvalFunction>();
   private static readonly derivativeNodeCache = new Map<string, math.MathNode>();
 
+  private static formatScope(scope: Record<string, number>): string {
+    const entries = Object.entries(scope);
+    if (entries.length === 1 && entries[0][0] === 'x') {
+      return `x = ${entries[0][1]}`;
+    }
+
+    return entries.map(([key, value]) => `${key} = ${value}`).join(', ');
+  }
+
   private static getDerivativeNode(expression: string, variable: string, order = 1) {
     const processed = this.preprocess(expression);
     const cacheKey = `${processed}::${variable}::${order}`;
@@ -82,11 +91,15 @@ export class MathEvaluator {
       const result = this.getCompiledExpression(expression).evaluate(scope);
 
       if (typeof result !== 'number' || !isFinite(result)) {
-        throw new Error('Resultado no finito');
+        throw new Error(`La función no está definida en ${this.formatScope(scope)}`);
       }
 
       return result;
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('La función no está definida en ')) {
+        throw error;
+      }
+
       throw new Error('No se pudo evaluar la expresion');
     }
   }
@@ -209,7 +222,6 @@ export class MathEvaluator {
   static isValid(expression: string): boolean {
     try {
       this.getCompiledExpression(expression);
-      this.evaluate(expression, 1);
       return true;
     } catch {
       return false;

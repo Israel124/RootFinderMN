@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { MathEvaluator } from '@/lib/mathEvaluator';
+import { parseNumericInput } from '@/lib/numberParser';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
@@ -29,8 +30,8 @@ export function VerificationSection({ f, setF, a, setA, b, setB }: VerificationS
   const handleVerify = () => {
     if (!f.trim()) return setResults({ fa: 0, fb: 0, fm: 0, signChange: false, error: 'La función no puede estar vacía' });
     
-    const valA = parseFloat(a);
-    const valB = parseFloat(b);
+    const valA = parseNumericInput(a);
+    const valB = parseNumericInput(b);
 
     if (isNaN(valA) || isNaN(valB)) {
       return setResults({ fa: 0, fb: 0, fm: 0, signChange: false, error: 'Los límites A y B deben ser valores numéricos válidos' });
