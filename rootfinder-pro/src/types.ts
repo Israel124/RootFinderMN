@@ -1,7 +1,6 @@
 export type MethodType = 'bisection' | 'false-position' | 'newton-raphson' | 'secant' | 'fixed-point';
 
 export type AppTab =
-  | 'verification'
   | 'taylor'
   | 'methods'
   | 'polynomial'
@@ -10,7 +9,7 @@ export type AppTab =
   | 'graph'
   | 'systems';
 
-export type AppAccessTab = 'verification' | 'taylor' | 'methods' | 'polynomial';
+export type AppAccessTab = 'taylor' | 'methods' | 'polynomial';
 
 export interface FixedPointCandidate {
   expression: string;

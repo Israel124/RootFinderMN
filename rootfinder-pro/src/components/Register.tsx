@@ -13,6 +13,7 @@ import {
   KeyRound,
   LoaderCircle,
   Mail,
+  AtSign,
   ShieldEllipsis,
   UserPlus,
   WandSparkles,
@@ -47,7 +48,29 @@ function getPasswordStrength(password: string) {
   return { label: 'Basica', width: password ? '36%' : '12%', color: 'from-rose-300 to-amber-300' };
 }
 
+function hasSequentialDigits(password: string) {
+  const digitsOnly = password.replace(/\D/g, '');
+  if (digitsOnly.length < 4) return false;
+
+  for (let i = 0; i <= digitsOnly.length - 4; i++) {
+    let ascending = true;
+    let descending = true;
+
+    for (let j = 1; j < 4; j++) {
+      const current = Number(digitsOnly[i + j]);
+      const previous = Number(digitsOnly[i + j - 1]);
+      if (current !== previous + 1) ascending = false;
+      if (current !== previous - 1) descending = false;
+    }
+
+    if (ascending || descending) return true;
+  }
+
+  return false;
+}
+
 export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -60,6 +83,7 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
 
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
   const passwordsMatch = !!confirmPassword && password === confirmPassword;
+  const hasNumericSequence = useMemo(() => hasSequentialDigits(password), [password]);
   const normalizedVerificationCode = verificationCode.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
 
  const handleSubmit = async (e: { preventDefault: () => void }) => {
@@ -70,13 +94,18 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
     return;
   }
 
+  if (hasNumericSequence) {
+    toast.error('La contrasena no puede contener secuencias numericas como 1234 o 4321');
+    return;
+  }
+
   setLoading(true);
 
   try {
     const response = await fetch(apiUrl('/api/register'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, email, password }),
     });
 
     const text = await response.text();
@@ -281,6 +310,26 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div className="space-y-2">
+                    <Label htmlFor="username" className="text-xs font-bold uppercase tracking-[0.18em] text-amber-100/72">
+                      Nombre de usuario
+                    </Label>
+                    <div className="relative">
+                      <AtSign className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-amber-200/55" />
+                      <Input
+                        id="username"
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        required
+                        placeholder="israel_dev"
+                        minLength={3}
+                        className="h-14 rounded-2xl border-white/10 bg-white/6 pl-11 text-base text-white placeholder:text-white/32 focus:border-amber-300/50"
+                      />
+                    </div>
+                    <p className="text-xs text-amber-100/55">Este nombre sera el que se mostrara dentro de la app.</p>
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="email" className="text-xs font-bold uppercase tracking-[0.18em] text-amber-100/72">
                       Correo electronico
                     </Label>
@@ -329,6 +378,9 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
                     <div className="h-2 overflow-hidden rounded-full bg-white/8">
                       <div className={`h-full rounded-full bg-linear-to-r ${passwordStrength.color} transition-all duration-300`} style={{ width: passwordStrength.width }} />
                     </div>
+                    {hasNumericSequence && (
+                      <p className="text-xs text-rose-300">Evita secuencias numericas consecutivas como 1234 o 4321.</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -364,13 +416,13 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
                     <div className="flex items-center justify-between gap-3 text-sm">
                       <span className="text-white/72">Progreso del alta</span>
                       <span className="font-bold text-amber-300">
-                        {email && password && passwordsMatch ? 'Listo para crear cuenta' : 'Completa los datos'}
+                        {username && email && password && passwordsMatch && !hasNumericSequence ? 'Listo para crear cuenta' : 'Completa los datos'}
                       </span>
                     </div>
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
                       <div
                         className="h-full rounded-full bg-linear-to-r from-amber-300 via-orange-300 to-emerald-300 transition-all duration-300"
-                        style={{ width: email && password && passwordsMatch ? '100%' : email && password ? '70%' : email || password ? '42%' : '18%' }}
+                        style={{ width: username && email && password && passwordsMatch && !hasNumericSequence ? '100%' : username && email && password ? '74%' : username || email || password ? '42%' : '18%' }}
                       />
                     </div>
                   </div>

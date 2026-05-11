@@ -24,9 +24,13 @@ import {
   ArrowDown,
   Calculator,
   Crosshair,
+  FlaskConical,
   Flame,
   Gauge,
+  History,
+  LineChart,
   Save,
+  SlidersHorizontal,
   Sigma,
   Sparkles,
   Eraser,
@@ -41,7 +45,6 @@ import { apiUrl } from '@/lib/apiConfig';
 
 const Login = lazy(() => import('./components/Login').then((module) => ({ default: module.Login })));
 const Register = lazy(() => import('./components/Register').then((module) => ({ default: module.Register })));
-const VerificationSection = lazy(() => import('./components/VerificationSection').then((module) => ({ default: module.VerificationSection })));
 const MethodsSection = lazy(() => import('./components/MethodsSection').then((module) => ({ default: module.MethodsSection })));
 const PolynomialSection = lazy(() => import('./components/PolynomialSection').then((module) => ({ default: module.PolynomialSection })));
 const ResultsSection = lazy(() => import('./components/ResultsSection').then((module) => ({ default: module.ResultsSection })));
@@ -114,7 +117,7 @@ function readStoredUser() {
   if (rawUser) {
     try {
       const parsed = JSON.parse(rawUser);
-      if (parsed && typeof parsed === 'object' && typeof parsed.email === 'string') {
+      if (parsed && typeof parsed === 'object' && (typeof parsed.email === 'string' || typeof parsed.username === 'string')) {
         return parsed;
       }
     } catch {
@@ -126,8 +129,8 @@ function readStoredUser() {
   if (!token) return null;
 
   const payload = decodeTokenPayload(token);
-  if (payload && typeof payload.email === 'string') {
-    return { id: payload.id, email: payload.email };
+  if (payload && (typeof payload.email === 'string' || typeof payload.username === 'string')) {
+    return { id: payload.id, username: payload.username, email: payload.email };
   }
 
   return null;
@@ -202,8 +205,8 @@ function LandingHero({ onOpenApp, onOpenMethods, onLogin }: LandingHeroProps) {
       </motion.div>
 
       <div className="relative z-10 mx-auto flex min-h-[92vh] max-w-7xl flex-col justify-between px-4 py-6 sm:px-6 lg:px-8">
-        <nav className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <nav className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-emerald-300/30 bg-black/45 backdrop-blur-md">
               <Sigma className="h-5 w-5 text-emerald-300" />
             </div>
@@ -216,14 +219,14 @@ function LandingHero({ onOpenApp, onOpenMethods, onLogin }: LandingHeroProps) {
             <button
               type="button"
               onClick={onLogin}
-              className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-white backdrop-blur-md transition hover:border-blue-300/60 hover:bg-blue-300 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-white backdrop-blur-md transition hover:border-blue-300/60 hover:bg-blue-300 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
             >
               Iniciar Sesión
             </button>
             <button
               type="button"
               onClick={() => onOpenApp('taylor')}
-              className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-white backdrop-blur-md transition hover:border-amber-300/60 hover:bg-amber-300 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-white backdrop-blur-md transition hover:border-amber-300/60 hover:bg-amber-300 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
             >
               <Calculator className="h-4 w-4" />
               Abrir app
@@ -231,7 +234,7 @@ function LandingHero({ onOpenApp, onOpenMethods, onLogin }: LandingHeroProps) {
           </div>
         </nav>
 
-        <div className="grid items-end gap-10 pb-10 pt-20 lg:grid-cols-[minmax(0,1.05fr)_28rem]">
+        <div className="grid items-end gap-10 pb-10 pt-12 sm:pt-20 lg:grid-cols-[minmax(0,1.05fr)_28rem]">
           <motion.div
             initial={{ opacity: 0, y: 28 }}
             animate={{ opacity: 1, y: 0 }}
@@ -242,7 +245,7 @@ function LandingHero({ onOpenApp, onOpenMethods, onLogin }: LandingHeroProps) {
               <Flame className="h-4 w-4 text-amber-300" />
               Laboratorio salvaje de raíces
             </div>
-            <h1 className="max-w-4xl text-5xl font-black leading-none text-white sm:text-7xl lg:text-8xl">
+            <h1 className="max-w-4xl text-4xl font-black leading-none text-white sm:text-6xl lg:text-8xl">
               Domina ecuaciones no lineales desde el campus.
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-7 text-emerald-50/82 sm:text-lg">
@@ -296,7 +299,7 @@ function LandingHero({ onOpenApp, onOpenMethods, onLogin }: LandingHeroProps) {
               <Gauge className="h-8 w-8 text-amber-300" />
             </div>
             <div className="mt-5 grid grid-cols-3 gap-2">
-              {['Biseccion', 'Newton', 'Secante'].map((label, index) => (
+              {['Bisección', 'Newton', 'Secante'].map((label, index) => (
                 <div key={label} className="rounded-lg border border-white/12 bg-white/8 p-3">
                   <p className="text-[11px] font-bold text-white/70">{label}</p>
                   <p className="mt-3 font-mono text-lg text-emerald-200">0{index + 1}</p>
@@ -341,7 +344,7 @@ export default function App() {
 
   const [page, setPage] = useState<AppPage>(getInitialPage());
   const [activeTab, setActiveTab] = useState<AppTab>('taylor');
-  const [pendingTab, setPendingTab] = useState<'verification' | 'taylor' | 'methods' | 'polynomial'>('taylor');
+  const [pendingTab, setPendingTab] = useState<'taylor' | 'methods' | 'polynomial'>('taylor');
   
   // Input States
   const [f, setF] = useState('x^2 - 4');
@@ -390,13 +393,13 @@ export default function App() {
     })
       .then(async (response) => {
         if (!response.ok) {
-          throw new Error('Sesion invalida');
+          throw new Error('Sesión inválida');
         }
 
         const data = await response.json();
         if (cancelled) return;
 
-        if (data?.user?.email) {
+        if (data?.user?.email || data?.user?.username) {
           window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data.user));
           setUser(data.user);
         } else {
@@ -716,11 +719,41 @@ export default function App() {
   };
 
   const activeModuleMetadata = getModuleTheme(activeTab);
+  const resolutionFlowItems = [
+    {
+      id: 'methods' as const,
+      title: 'Métodos',
+      detail: 'Entrada y configuración',
+      icon: SlidersHorizontal,
+      ready: Boolean(f.trim()),
+    },
+    {
+      id: 'results' as const,
+      title: 'Resultados',
+      detail: currentResult ? 'Cálculo disponible' : 'Pendiente de cálculo',
+      icon: FlaskConical,
+      ready: Boolean(currentResult),
+    },
+    {
+      id: 'graph' as const,
+      title: 'Gráfica',
+      detail: currentResult ? 'Lista para validar' : 'Se habilita tras calcular',
+      icon: LineChart,
+      ready: Boolean(currentResult && f.trim()),
+    },
+    {
+      id: 'history' as const,
+      title: 'Historial',
+      detail: history.length > 0 ? `${history.length} registros` : 'Sin registros cargados',
+      icon: History,
+      ready: history.length > 0,
+    },
+  ];
 
   return (
     <div className={cn('min-h-screen bg-background text-foreground font-sans selection:bg-primary/20', activeModuleMetadata.themeClass)}>
       {!authBootstrapped ? (
-        <ModuleLoader label="Validando sesion..." />
+        <ModuleLoader label="Validando sesión..." />
       ) : !user ? (
         <Suspense fallback={<ModuleLoader label="Preparando acceso..." />}>
           {authMode ? (
@@ -737,7 +770,7 @@ export default function App() {
             )
           ) : (
             <LandingHero
-              onOpenApp={(tab = 'verification') => requestAppAccess(tab)}
+              onOpenApp={(tab = 'methods') => requestAppAccess(tab)}
               onOpenMethods={() => requestAppAccess('methods')}
               onLogin={() => setAuthMode('login')}
             />
@@ -745,7 +778,7 @@ export default function App() {
         </Suspense>
       ) : page === 'landing' ? (
         <LandingHero
-          onOpenApp={(tab = 'verification') => requestAppAccess(tab)}
+          onOpenApp={(tab = 'methods') => requestAppAccess(tab)}
           onOpenMethods={() => requestAppAccess('methods')}
           onLogin={() => setAuthMode('login')}
         />
@@ -784,54 +817,109 @@ export default function App() {
             </div>
           </header>
           <main id="workspace" className="max-w-7xl mx-auto px-4 py-8 relative scroll-mt-24">
-<section className="mb-8 grid gap-4 lg:grid-cols-[1.6fr_0.9fr]">
-          <div className="rounded-[2rem] border border-primary/10 bg-linear-to-br from-primary/10 via-card/70 to-card/70 p-8 shadow-2xl backdrop-blur-xl">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-3xl">
-                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary/60">Panel Principal</p>
-                <h2 className="mt-4 text-3xl font-black tracking-tight text-foreground sm:text-4xl">{activeModuleMetadata.title}</h2>
-                <p className="mt-4 text-sm leading-7 text-muted-foreground sm:text-base">
-                  Explora {activeModuleMetadata.subtitle.toLowerCase()} con una interfaz más continua, pensada para configurar, calcular y revisar resultados sin romper el flujo de trabajo.
-                </p>
-              </div>
-              <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-xl shadow-white/5">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/70">Módulo activo</p>
-                <p className="mt-3 text-xl font-black text-primary">{activeModuleMetadata.title}</p>
-                <p className="mt-2 text-sm text-muted-foreground">{activeModuleMetadata.subtitle}</p>
-              </div>
-            </div>
-          </div>
+            <section className="mb-8 grid gap-4 lg:grid-cols-[1.6fr_0.9fr]">
+              <div className="rounded-[2rem] border border-primary/10 bg-linear-to-br from-primary/10 via-card/70 to-card/70 p-8 shadow-2xl backdrop-blur-xl">
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="max-w-3xl">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary/60">Panel Principal</p>
+                    <h2 className="mt-4 text-3xl font-black tracking-tight text-foreground sm:text-4xl">{activeModuleMetadata.title}</h2>
+                    <p className="mt-4 text-sm leading-7 text-muted-foreground sm:text-base">
+                      Explora {activeModuleMetadata.subtitle.toLowerCase()} con una interfaz más continua, pensada para configurar, calcular y revisar resultados sin romper el flujo de trabajo.
+                    </p>
+                  </div>
+                  <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-xl shadow-white/5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/70">Módulo activo</p>
+                    <p className="mt-3 text-xl font-black text-primary">{activeModuleMetadata.title}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">{activeModuleMetadata.subtitle}</p>
+                  </div>
+                </div>
 
-          <div className="grid gap-4">
-            <div className="rounded-[2rem] border border-primary/10 bg-card/55 p-6 shadow-xl backdrop-blur-xl">
-              <button
-                type="button"
-                onClick={() => setHistoryModalOpen(true)}
-                className="w-full text-left"
-              >
-                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/60">Estado de aprendizaje</p>
-                <p className="mt-3 text-3xl font-black">{resolutionHistoryCount + systemHistoryCount + taylorHistoryCount + polynomialHistoryCount}</p>
-                <p className="mt-2 text-sm text-muted-foreground">Toca aqui para abrir el historial completo por modulos.</p>
-              </button>
-            </div>
-            <div className="rounded-[2rem] border border-primary/10 bg-card/55 p-6 shadow-xl backdrop-blur-xl">
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/60">Siguiente paso</p>
-              <p className="mt-3 text-xl font-black">Flujo directo de resolución</p>
-              <p className="mt-2 text-sm text-muted-foreground">Ahora puedes ajustar la entrada base y ejecutar métodos dentro del mismo panel de trabajo.</p>
+                {activeModuleMetadata.title === 'Métodos de Resolución' && (
+                  <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {resolutionFlowItems.map((item, index) => {
+                      const Icon = item.icon;
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setActiveTab(item.id)}
+                          className={cn(
+                            'rounded-[1.6rem] border p-4 text-left transition-all',
+                            isActive
+                              ? 'border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20'
+                              : 'border-primary/10 bg-background/35 hover:border-primary/30 hover:bg-primary/8'
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className={cn('flex h-10 w-10 items-center justify-center rounded-2xl', isActive ? 'bg-black/12' : 'bg-primary/10')}>
+                              <Icon className={cn('h-4 w-4', isActive ? 'text-primary-foreground' : 'text-primary')} />
+                            </div>
+                            <span
+                              className={cn(
+                                'rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.24em]',
+                                isActive
+                                  ? 'border-primary-foreground/20 text-primary-foreground/85'
+                                  : item.ready
+                                  ? 'border-primary/20 bg-primary/10 text-primary'
+                                  : 'border-border/80 text-muted-foreground'
+                              )}
+                            >
+                              {isActive ? 'Ahora' : item.ready ? 'Listo' : `${index + 1}`}
+                            </span>
+                          </div>
+                          <p className={cn('mt-4 text-sm font-semibold', isActive ? 'text-primary-foreground' : 'text-foreground')}>{item.title}</p>
+                          <p className={cn('mt-1 text-xs leading-5', isActive ? 'text-primary-foreground/80' : 'text-muted-foreground')}>{item.detail}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-4">
+                <div className="rounded-[2rem] border border-primary/10 bg-card/55 p-6 shadow-xl backdrop-blur-xl">
+                  <button
+                    type="button"
+                    onClick={() => setHistoryModalOpen(true)}
+                    className="w-full text-left"
+                  >
+                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/60">Estado de aprendizaje</p>
+                    <p className="mt-3 text-3xl font-black">{resolutionHistoryCount + systemHistoryCount + taylorHistoryCount + polynomialHistoryCount}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">Toca aquí para abrir el historial completo por módulos.</p>
+                  </button>
+                </div>
+                <div className="rounded-[2rem] border border-primary/10 bg-card/55 p-6 shadow-xl backdrop-blur-xl">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/60">Siguiente paso</p>
+                  <p className="mt-3 text-xl font-black">
+                    {activeTab === 'methods'
+                      ? 'Define datos y calcula'
+                      : activeTab === 'results'
+                      ? 'Lee la salida y contrástala'
+                      : activeTab === 'graph'
+                      ? 'Valida visualmente la raíz'
+                      : activeTab === 'history'
+                      ? 'Recarga un caso anterior'
+                      : 'Explora el módulo activo'}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {activeTab === 'methods'
+                      ? 'Todo el diagnóstico previo quedó integrado aquí para que no pierdas continuidad.'
+                      : activeTab === 'results'
+                      ? 'La salida numérica ahora funciona como puente directo hacia la gráfica y la iteración.'
+                      : activeTab === 'graph'
+                      ? 'Ajusta el rango, identifica cruces y compara la raíz marcada con la curva real.'
+                      : activeTab === 'history'
+                      ? 'Puedes traer cálculos anteriores sin abandonar el flujo actual.'
+                      : 'Sigue navegando entre módulos desde la columna izquierda.'}
+                  </p>
                 </div>
               </div>
             </section>
 
             <section className="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start">
-              <div className="space-y-6">
+              <div>
                 <Navbar activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={handleLogout} />
-                <div className="hidden rounded-[1.7rem] border border-primary/10 bg-card/70 p-5 shadow-xl backdrop-blur-xl lg:block">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Navegación rápida</p>
-                  <p className="mt-3 text-lg font-black text-foreground">{activeModuleMetadata.title}</p>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    El panel lateral queda fijo para que cambies de módulo o pestaña sin volver arriba en cada navegación.
-                  </p>
-                </div>
               </div>
 
               <div className="relative min-h-[600px]">
@@ -846,9 +934,6 @@ export default function App() {
                     <Suspense
                       fallback={<ModuleLoader />}
                     >
-                      {activeTab === 'verification' && (
-                        <VerificationSection f={f} setF={setF} a={a} setA={setA} b={b} setB={setB} />
-                      )}
                       {activeTab === 'taylor' && (
                         <TaylorSection />
                       )}
@@ -869,7 +954,11 @@ export default function App() {
                         <PolynomialSection />
                       )}
                       {activeTab === 'results' && (
-                        <ResultsSection result={currentResult} />
+                        <ResultsSection
+                          result={currentResult}
+                          onViewGraph={() => setActiveTab('graph')}
+                          onBackToMethods={() => setActiveTab('methods')}
+                        />
                       )}
                       {activeTab === 'history' && (
                         <HistorySection 
@@ -883,7 +972,11 @@ export default function App() {
                         />
                       )}
                       {activeTab === 'graph' && (
-                        <GraphSection f={f} root={currentResult?.root || null} />
+                        <GraphSection
+                          f={f}
+                          root={currentResult?.root || null}
+                          onBackToResults={currentResult ? () => setActiveTab('results') : undefined}
+                        />
                       )}
                       {activeTab === 'systems' && (
                         <NewtonSystemSection />

@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MathEvaluator } from '@/lib/mathEvaluator';
 import { Badge } from '@/components/ui/badge';
-import { Maximize2, Minimize2, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Maximize2, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { detectZeroCrossings, normalizeRange, PlotRange } from '@/lib/graphUtils';
@@ -13,6 +13,7 @@ import { GeoGebraGraph } from '@/components/GeoGebraGraph';
 interface GraphSectionProps {
   f: string;
   root: number | null;
+  onBackToResults?: () => void;
 }
 
 function niceStep(range: number, ticks: number) {
@@ -30,7 +31,7 @@ function cssVar(name: string, fallback: string) {
   return value || fallback;
 }
 
-export function GraphSection({ f, root }: GraphSectionProps) {
+export function GraphSection({ f, root, onBackToResults }: GraphSectionProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fullCanvasRef = useRef<HTMLCanvasElement>(null);
   const defaultRange: PlotRange = {
@@ -288,14 +289,51 @@ export function GraphSection({ f, root }: GraphSectionProps) {
   };
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-4 max-w-7xl mx-auto">
-      <Card className="lg:col-span-3 overflow-hidden shadow-2xl border-primary/10 bg-card/50 backdrop-blur-sm">
-        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+    <div className="space-y-6 max-w-7xl mx-auto">
+      <Card className="overflow-hidden border-primary/10 bg-linear-to-br from-primary/10 via-card/82 to-card/94 shadow-2xl backdrop-blur-sm">
+        <CardContent className="p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-primary/65">Lectura visual</p>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-primary">Gráfica de validación</h2>
+              <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                Usa esta vista para contrastar el resultado numérico con la forma real de la función, revisar cruces por cero y ajustar el rango sin perder contexto.
+              </p>
+            </div>
+            {onBackToResults && (
+              <div className="flex flex-wrap gap-3">
+                <Button type="button" variant="outline" onClick={onBackToResults} className="border-primary/20 hover:bg-primary/10">
+                  <ArrowLeft className="h-4 w-4" />
+                  Volver a resultados
+                </Button>
+              </div>
+            )}
+          </div>
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Función activa</p>
+              <p className="mt-3 font-mono text-sm break-words [overflow-wrap:anywhere]">{f || 'Sin función cargada'}</p>
+            </div>
+            <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Raíz marcada</p>
+              <p className="mt-3 font-mono text-lg text-primary">{root !== null ? root.toFixed(8) : 'N/D'}</p>
+            </div>
+            <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Cruces detectados</p>
+              <p className="mt-3 text-2xl font-black">{crossings.length}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+        <Card className="lg:col-span-3 overflow-hidden shadow-2xl border-primary/10 bg-card/50 backdrop-blur-sm">
+        <CardHeader className="flex flex-col gap-4 pb-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-2xl font-bold text-primary">Visualización Completa</CardTitle>
             <CardDescription>Explora la función f(x) con herramientas de zoom y vista ampliada.</CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="icon" onClick={() => zoom(0.1)} title="Zoom In">
               <ZoomIn className="w-4 h-4" />
             </Button>
@@ -311,7 +349,7 @@ export function GraphSection({ f, root }: GraphSectionProps) {
                   variant="default" 
                   size="icon" 
                   className="bg-primary hover:bg-primary/80 text-primary-foreground"
-                  aria-label="Abrir grafica en vista ampliada"
+                  aria-label="Abrir gráfica en vista ampliada"
                   onClick={() => setIsDialogOpen(true)}
                 >
                   <Maximize2 className="w-4 h-4" />
@@ -352,7 +390,7 @@ export function GraphSection({ f, root }: GraphSectionProps) {
         <CardContent className="p-0 sm:p-6">
           <GeoGebraGraph
             expressions={[f]}
-            points={root !== null ? [{ x: root, y: 0, label: 'Raiz' }] : []}
+            points={root !== null ? [{ x: root, y: 0, label: 'Raíz' }] : []}
             xMin={range.xmin}
             xMax={range.xmax}
             yMin={range.ymin}
@@ -394,8 +432,8 @@ export function GraphSection({ f, root }: GraphSectionProps) {
         </CardContent>
       </Card>
 
-      <div className="space-y-6">
-        <Card className="border-primary/10 bg-card/50 backdrop-blur-sm">
+        <div className="space-y-6">
+          <Card className="border-primary/10 bg-card/50 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="text-lg text-primary">Control de Rango</CardTitle>
           </CardHeader>
@@ -443,9 +481,9 @@ export function GraphSection({ f, root }: GraphSectionProps) {
               </div>
             </div>
           </CardContent>
-        </Card>
+          </Card>
 
-        <Card className="border-primary/20 bg-primary/5 backdrop-blur-sm">
+          <Card className="border-primary/20 bg-primary/5 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="text-lg text-primary">Cruces Detectados</CardTitle>
           </CardHeader>
@@ -468,7 +506,8 @@ export function GraphSection({ f, root }: GraphSectionProps) {
               </div>
             )}
           </CardContent>
-        </Card>
+          </Card>
+        </div>
       </div>
     </div>
   );

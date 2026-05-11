@@ -50,15 +50,15 @@ interface HistorySectionProps {
   onClear: () => void;
   onLoad: (result: CalculationResult) => void;
   onUpdate: (id: string, label: string) => void;
-  onNavigateToTab: (tab: 'history' | 'taylor' | 'polynomial' | 'systems' | 'results' | 'methods' | 'graph' | 'verification') => void;
+  onNavigateToTab: (tab: 'history' | 'taylor' | 'polynomial' | 'systems' | 'results' | 'methods' | 'graph') => void;
   view?: 'full' | 'resolution';
 }
 
 const moduleMeta: Record<ModuleSection, { title: string; icon: typeof Sigma; description: string }> = {
   resolution: {
-    title: 'Resolucion',
+    title: 'Resolución',
     icon: Sigma,
-    description: 'Metodos clasicos con persistencia principal.',
+    description: 'Métodos clásicos con persistencia principal.',
   },
   taylor: {
     title: 'Taylor',
@@ -68,7 +68,7 @@ const moduleMeta: Record<ModuleSection, { title: string; icon: typeof Sigma; des
   polynomial: {
     title: 'Polinomios',
     icon: BarChart3,
-    description: 'Muller, Bairstow y Horner con grafica.',
+    description: 'Müller, Bairstow y Horner con gráfica.',
   },
   systems: {
     title: 'Sistemas',
@@ -229,9 +229,9 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate, o
     const XLSX = await import('xlsx');
     const data = resolutionHistory.map((item) => ({
       Fecha: format(item.timestamp, 'dd/MM/yyyy HH:mm:ss'),
-      Metodo: item.method,
-      Funcion: item.functionF,
-      Raiz: item.root,
+      Método: item.method,
+      Función: item.functionF,
+      Raíz: item.root,
       Error: item.error,
       Iteraciones: item.iterations.length,
       Convergencia: item.converged ? 'Si' : 'No',
@@ -247,7 +247,7 @@ export function HistorySection({ history, onDelete, onClear, onLoad, onUpdate, o
   const exportResolutionToCSV = () => {
     if (resolutionHistory.length === 0) return toast.error('No hay historial para exportar');
 
-    const headers = ['Fecha', 'Metodo', 'Funcion', 'Raiz', 'Error', 'Iteraciones', 'Convergencia'];
+    const headers = ['Fecha', 'Método', 'Función', 'Raíz', 'Error', 'Iteraciones', 'Convergencia'];
     const rows = resolutionHistory.map((item) => [
       format(item.timestamp, 'dd/MM/yyyy HH:mm:ss'),
       item.method,

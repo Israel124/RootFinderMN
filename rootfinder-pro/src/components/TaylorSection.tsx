@@ -369,6 +369,45 @@ export function TaylorSection() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      <Card className="overflow-hidden border-primary/10 bg-linear-to-br from-primary/10 via-card/82 to-card/94 shadow-2xl backdrop-blur-sm">
+        <CardContent className="p-6 sm:p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-4xl">
+              <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-primary/65">Aproximación analítica</p>
+              <h2 className="mt-4 text-3xl font-black tracking-tight text-primary sm:text-4xl">Taylor con lectura numérica y visual</h2>
+              <p className="mt-4 text-sm leading-7 text-muted-foreground sm:text-base">
+                Define la función, fija el centro y compara el polinomio contra el valor real sin salir del mismo flujo. La idea es que la configuración, el error y la gráfica se lean como una sola historia.
+              </p>
+            </div>
+            <div className="rounded-[1.6rem] border border-primary/15 bg-background/35 p-5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Estado actual</p>
+              <p className="mt-3 text-lg font-black text-primary">{activeResult ? `P${activeResult.order}(x) listo` : 'Configurando serie'}</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {activeResult ? `Error relativo: ${activeResult.relativeError.toFixed(6)}%` : 'Ingresa la función y los parámetros para generar una vista previa.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-3 md:grid-cols-3">
+            <div className="rounded-[1.5rem] border border-primary/10 bg-background/30 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Paso 1</p>
+              <p className="mt-3 text-lg font-bold">Modela la serie</p>
+              <p className="mt-2 text-sm text-muted-foreground">Define `f(x)`, el centro `a` y el orden de truncamiento que quieres estudiar.</p>
+            </div>
+            <div className="rounded-[1.5rem] border border-primary/10 bg-background/30 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Paso 2</p>
+              <p className="mt-3 text-lg font-bold">Mide el error</p>
+              <p className="mt-2 text-sm text-muted-foreground">Compara `P_n(x)` contra `f(x)` para ver si el orden elegido ya es suficiente.</p>
+            </div>
+            <div className="rounded-[1.5rem] border border-primary/10 bg-background/30 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Paso 3</p>
+              <p className="mt-3 text-lg font-bold">Valida visualmente</p>
+              <p className="mt-2 text-sm text-muted-foreground">Usa la gráfica comparativa para ver dónde la aproximación sigue a la función real.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
         <Card className="border-primary/10 bg-card/60 backdrop-blur-sm shadow-2xl">
           <CardHeader className="border-b border-primary/10 bg-linear-to-r from-primary/10 via-transparent to-transparent">
@@ -513,10 +552,10 @@ export function TaylorSection() {
             </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="icon" onClick={() => zoomTaylorGraph('in')} title="Acercar grafica" aria-label="Acercar grafica">
+              <Button variant="outline" size="icon" onClick={() => zoomTaylorGraph('in')} title="Acercar gráfica" aria-label="Acercar gráfica">
                 <ZoomIn className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon" onClick={() => zoomTaylorGraph('out')} title="Alejar grafica" aria-label="Alejar grafica">
+              <Button variant="outline" size="icon" onClick={() => zoomTaylorGraph('out')} title="Alejar gráfica" aria-label="Alejar gráfica">
                 <ZoomOut className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="icon" onClick={() => setGraphZoom(1)} title="Restablecer vista" aria-label="Restablecer vista">
@@ -525,7 +564,29 @@ export function TaylorSection() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {activeResult && (
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Comparación activa</p>
+                <p className="mt-3 font-mono text-sm break-words [overflow-wrap:anywhere]">{fx}</p>
+                <p className="mt-2 font-mono text-sm text-amber-400 break-words [overflow-wrap:anywhere]">{activeResult.polynomial}</p>
+              </div>
+              <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Punto evaluado</p>
+                <p className="mt-3 text-2xl font-black">{activeResult.evaluateAt.toFixed(4)}</p>
+                <p className="mt-2 text-sm text-muted-foreground">Centro: a = {activeResult.center.toFixed(4)}</p>
+              </div>
+              <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Lectura rápida</p>
+                <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                  {activeResult.relativeError < 1
+                    ? 'La aproximación ya es bastante cercana en el punto evaluado.'
+                    : 'Todavía hay una diferencia visible; conviene probar un orden mayor o moverse más cerca del centro.'}
+                </p>
+              </div>
+            </div>
+          )}
           <GeoGebraGraph
             expressions={activeResult ? [fx, activeResult.polynomial] : [fx]}
             points={activeResult ? [{ x: activeResult.evaluateAt, y: activeResult.approximation, label: 'P_n(x)' }] : []}

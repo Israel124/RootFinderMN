@@ -89,7 +89,7 @@ const methodLabel: Record<PolynomialRootMethod, string> = {
 };
 
 const methodDescription: Record<PolynomialRootMethod, string> = {
-  muller: 'Usa interpolacion cuadratica local con x0, x1 y x2 para producir una nueva aproximacion x3.',
+  muller: 'Usa interpolación cuadrática local con x0, x1 y x2 para producir una nueva aproximación x3.',
   bairstow: 'Ajusta el factor x^2 + r*x + s con coeficientes b y c hasta factorizar el polinomio.',
   horner: 'Aplica el esquema de Horner junto con Newton para evaluar P(x), P\'(x) y corregir la raiz.',
 };
@@ -440,7 +440,7 @@ export function PolynomialSection() {
         throw new Error('La tolerancia debe ser un numero positivo.');
       }
       if (Number.isNaN(parsedMaxIter) || parsedMaxIter <= 0) {
-        throw new Error('El numero maximo de iteraciones debe ser un entero positivo.');
+        throw new Error('El número máximo de iteraciones debe ser un entero positivo.');
       }
 
       const coeffs = PolynomialMethods.parseCoefficients(coefficients);
@@ -477,7 +477,7 @@ export function PolynomialSection() {
           break;
         }
         default:
-          throw new Error('Metodo desconocido');
+          throw new Error('Método desconocido');
       }
 
       setResult(calculatedResult);
@@ -501,9 +501,9 @@ export function PolynomialSection() {
         toast.warning(calculatedResult.message);
       }
     } catch (err: any) {
-      setError(err?.message ?? 'Error desconocido al calcular las raices');
+      setError(err?.message ?? 'Error desconocido al calcular las raíces');
       setResult(null);
-      toast.error(err?.message ?? 'Error desconocido al calcular las raices');
+      toast.error(err?.message ?? 'Error desconocido al calcular las raíces');
     }
   };
 
@@ -554,12 +554,39 @@ export function PolynomialSection() {
   return (
     <section className="grid gap-6">
       <div className="rounded-[2rem] border border-primary/10 bg-linear-to-br from-primary/10 via-card/70 to-card/70 p-8 shadow-2xl backdrop-blur-xl">
-        <div className="max-w-4xl">
-          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-primary/60">Raices polinomicas</p>
-          <h2 className="mt-4 text-3xl font-black tracking-tight text-foreground sm:text-4xl">Muller, Bairstow y Horner con grafica e historial</h2>
-          <p className="mt-4 text-sm leading-7 text-muted-foreground sm:text-base">
-            Cada metodo usa su esquema clasico, muestra sus iteraciones, dibuja el polinomio y guarda el resultado con CRUD local para recargarlo despues.
-          </p>
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-4xl">
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-primary/60">Raíces polinómicas</p>
+            <h2 className="mt-4 text-3xl font-black tracking-tight text-foreground sm:text-4xl">Müller, Bairstow y Horner con gráfica e historial</h2>
+            <p className="mt-4 text-sm leading-7 text-muted-foreground sm:text-base">
+              Cada método usa su esquema clásico, muestra sus iteraciones, dibuja el polinomio y guarda el resultado con CRUD local para recargarlo después.
+            </p>
+          </div>
+          <div className="rounded-[1.6rem] border border-primary/15 bg-background/35 p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Ruta actual</p>
+            <p className="mt-3 text-lg font-black text-primary">{methodLabel[method]}</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {result ? `${result.roots.length} raíz${result.roots.length === 1 ? '' : 'ces'} registradas` : 'Configura el polinomio y ejecuta el método.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-8 grid gap-3 md:grid-cols-3">
+          <div className="rounded-[1.5rem] border border-primary/10 bg-background/30 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Paso 1</p>
+            <p className="mt-3 text-lg font-bold">Define el polinomio</p>
+            <p className="mt-2 text-sm text-muted-foreground">Carga coeficientes y elige el método según el tipo de raíz o estrategia que buscas.</p>
+          </div>
+          <div className="rounded-[1.5rem] border border-primary/10 bg-background/30 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Paso 2</p>
+            <p className="mt-3 text-lg font-bold">Observa la convergencia</p>
+            <p className="mt-2 text-sm text-muted-foreground">Revisa las iteraciones para entender cómo corrige cada método sus aproximaciones.</p>
+          </div>
+          <div className="rounded-[1.5rem] border border-primary/10 bg-background/30 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Paso 3</p>
+            <p className="mt-3 text-lg font-bold">Valida en la gráfica</p>
+            <p className="mt-2 text-sm text-muted-foreground">Confirma si las raíces reales y semillas están ubicadas donde la curva realmente cambia.</p>
+          </div>
         </div>
       </div>
 
@@ -567,7 +594,7 @@ export function PolynomialSection() {
         <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
           <CardHeader className="space-y-2 p-6">
             <CardTitle className="text-xl font-black">Configuracion polinomica</CardTitle>
-            <CardDescription>Define el polinomio, el metodo y sus datos iniciales.</CardDescription>
+            <CardDescription>Define el polinomio, el método y sus datos iniciales.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-5 p-6">
             <div className="grid gap-2">
@@ -585,10 +612,10 @@ export function PolynomialSection() {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="method">Metodo</Label>
+              <Label htmlFor="method">Método</Label>
               <Select value={method} onValueChange={(value) => setMethod(value as PolynomialRootMethod)}>
                 <SelectTrigger className="h-12 bg-background/50 border-primary/20 focus:ring-primary text-lg">
-                  <SelectValue placeholder="Selecciona un metodo" value={methodLabel[method]} />
+                  <SelectValue placeholder="Selecciona un método" value={methodLabel[method]} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="muller">Muller</SelectItem>
@@ -607,6 +634,21 @@ export function PolynomialSection() {
                     {line}
                   </p>
                 ))}
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-primary/10 bg-background/30 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Grado</p>
+                <p className="mt-3 text-2xl font-black">{parsedCoefficients ? parsedCoefficients.length - 1 : 'N/D'}</p>
+              </div>
+              <div className="rounded-2xl border border-primary/10 bg-background/30 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Tolerancia</p>
+                <p className="mt-3 font-mono text-lg">{tol || 'N/D'}</p>
+              </div>
+              <div className="rounded-2xl border border-primary/10 bg-background/30 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Máx. iteraciones</p>
+                <p className="mt-3 font-mono text-lg">{maxIter || 'N/D'}</p>
               </div>
             </div>
 
@@ -669,7 +711,7 @@ export function PolynomialSection() {
             </div>
 
             <Button className="mt-2 w-full" onClick={handleCalculate}>
-              Calcular raices
+              Calcular raíces
             </Button>
 
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -683,26 +725,47 @@ export function PolynomialSection() {
 
         <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
           <CardHeader className="space-y-2 p-6">
-            <CardTitle className="text-xl font-black">Resumen del metodo</CardTitle>
-            <CardDescription>Estado del calculo y parametros usados.</CardDescription>
+            <CardTitle className="text-xl font-black">Resumen del método</CardTitle>
+            <CardDescription>Estado del cálculo y parámetros usados.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 p-6">
             {!result && (
-              <p className="text-sm text-muted-foreground">
-                Ejecuta un calculo para ver raices, convergencia y rastros de iteracion.
-              </p>
+              <div className="rounded-3xl border border-dashed border-primary/15 bg-background/30 p-5">
+                <p className="text-sm text-muted-foreground">
+                  Ejecuta un cálculo para ver raíces, convergencia y rastros de iteración.
+                </p>
+              </div>
             )}
 
             {result && (
               <div className="space-y-4">
                 <div className="grid gap-2 rounded-3xl border border-primary/10 bg-primary/5 p-4">
                   <p className="text-sm font-semibold text-primary">{result.message}</p>
-                  <p className="text-sm text-muted-foreground">Metodo: {methodLabel[result.method]}</p>
+                  <p className="text-sm text-muted-foreground">Método: {methodLabel[result.method]}</p>
                   <p className="text-sm text-muted-foreground">Convergencia: {result.converged ? 'Si' : 'No'}</p>
                 </div>
 
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl border border-primary/10 bg-background/70 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Raíces listadas</p>
+                    <p className="mt-3 text-2xl font-black">{result.roots.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-primary/10 bg-background/70 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Iteraciones</p>
+                    <p className="mt-3 text-2xl font-black">{result.iterations.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-primary/10 bg-background/70 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Lectura rápida</p>
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                      {result.converged
+                        ? 'El método cerró convergencia; la gráfica sirve para validar la lectura real.'
+                        : 'No cerró convergencia; revisa semillas o cambia de método antes de insistir.'}
+                    </p>
+                  </div>
+                </div>
+
                 <div className="grid gap-2 rounded-3xl border border-primary/10 bg-background/70 p-4">
-                  <p className="text-sm font-semibold">Raices encontradas</p>
+                  <p className="text-sm font-semibold">Raíces encontradas</p>
                   {result.roots.map((root, index) => (
                     <p key={`${root}-${index}`} className="text-sm text-foreground">
                       x{index + 1} = {root}
@@ -710,7 +773,7 @@ export function PolynomialSection() {
                   ))}
                   {result.hiddenComplexRoots.length > 0 && (
                     <p className="text-xs text-muted-foreground">
-                      La grafica solo proyecta las raices reales. Complejas ocultas: {result.hiddenComplexRoots.join(', ')}
+                      La gráfica solo proyecta las raíces reales. Complejas ocultas: {result.hiddenComplexRoots.join(', ')}
                     </p>
                   )}
                 </div>
@@ -737,15 +800,15 @@ export function PolynomialSection() {
             <div className="flex items-center gap-3">
               <LineChart className="h-5 w-5 text-primary" />
               <div>
-                <CardTitle className="text-xl font-black">Grafica del polinomio</CardTitle>
-                <CardDescription>Curva P(x), semillas, iteraciones y raices reales del metodo activo.</CardDescription>
+                <CardTitle className="text-xl font-black">Gráfica del polinomio</CardTitle>
+                <CardDescription>Curva P(x), semillas, iteraciones y raíces reales del método activo.</CardDescription>
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="icon" onClick={() => zoomPolynomialGraph('in')} title="Acercar grafica" aria-label="Acercar grafica">
+              <Button variant="outline" size="icon" onClick={() => zoomPolynomialGraph('in')} title="Acercar gráfica" aria-label="Acercar gráfica">
                 <ZoomIn className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon" onClick={() => zoomPolynomialGraph('out')} title="Alejar grafica" aria-label="Alejar grafica">
+              <Button variant="outline" size="icon" onClick={() => zoomPolynomialGraph('out')} title="Alejar gráfica" aria-label="Alejar gráfica">
                 <ZoomOut className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="icon" onClick={() => setGraphZoom(1)} title="Restablecer vista" aria-label="Restablecer vista">
@@ -755,6 +818,24 @@ export function PolynomialSection() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4 p-6">
+          {result && (
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Curva activa</p>
+                <p className="mt-3 font-mono text-sm break-words [overflow-wrap:anywhere]">
+                  {activeGraphData?.polynomialExpression ?? 'Sin polinomio disponible'}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Raíces reales visibles</p>
+                <p className="mt-3 text-2xl font-black">{result.realRoots.length}</p>
+              </div>
+              <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Marcadores</p>
+                <p className="mt-3 text-2xl font-black">{activeGraphData?.markers.length ?? 0}</p>
+              </div>
+            </div>
+          )}
           <GeoGebraGraph
             expressions={activeGraphData?.polynomialExpression ? [activeGraphData.polynomialExpression] : []}
             points={(activeGraphData?.markers ?? []).map((marker) => ({
@@ -791,7 +872,7 @@ export function PolynomialSection() {
             <Badge className="bg-primary text-primary-foreground">P(x)</Badge>
             <Badge variant="outline">Semillas</Badge>
             <Badge variant="outline">Iteraciones</Badge>
-            <Badge className="bg-amber-500 text-black">Raices reales</Badge>
+            <Badge className="bg-amber-500 text-black">Raíces reales</Badge>
           </div>
           {activeGraphData?.polynomialExpression && (
             <p className="font-mono text-xs text-muted-foreground break-words [overflow-wrap:anywhere]">
@@ -808,7 +889,7 @@ export function PolynomialSection() {
               <Sigma className="h-5 w-5 text-primary" />
               <div>
                 <CardTitle className="text-xl font-black">Iteraciones detalladas</CardTitle>
-                <CardDescription>Seguimiento de cada paso con las variables del metodo seleccionado.</CardDescription>
+                <CardDescription>Seguimiento de cada paso con las variables del método seleccionado.</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -863,7 +944,7 @@ export function PolynomialSection() {
         <CardContent className="p-6">
           {history.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-primary/15 bg-background/30 p-4 text-sm text-muted-foreground">
-              Todavia no hay calculos polinomicos almacenados.
+              Todavía no hay cálculos polinómicos almacenados.
             </div>
           ) : (
             <ScrollArea className="h-[520px] pr-4">
@@ -900,7 +981,7 @@ export function PolynomialSection() {
                             <p className="mt-1 text-sm font-semibold">
                               {item.label?.trim() || `${methodLabel[item.method]} - ${item.coefficientsText}`}
                             </p>
-                            <p className="mt-1 text-xs text-muted-foreground">Metodo: {methodLabel[item.method]}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">Método: {methodLabel[item.method]}</p>
                           </>
                         )}
                       </div>
@@ -910,7 +991,7 @@ export function PolynomialSection() {
                     </div>
                     <p className="font-mono text-xs break-words [overflow-wrap:anywhere]">Coeficientes: {item.coefficientsText}</p>
                     <p className="text-xs text-muted-foreground break-words [overflow-wrap:anywhere]">
-                      Raices: {Array.isArray(item.roots) && item.roots.length > 0 ? item.roots.join(', ') : 'Sin datos'}
+                      Raíces: {Array.isArray(item.roots) && item.roots.length > 0 ? item.roots.join(', ') : 'Sin datos'}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" onClick={() => handleLoadHistory(item)}>Cargar</Button>

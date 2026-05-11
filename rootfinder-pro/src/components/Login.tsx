@@ -140,17 +140,17 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
 
           <div className="max-w-2xl">
             <h1 className="text-5xl font-black leading-none text-white sm:text-6xl">
-              Entra al laboratorio con una interfaz mas viva.
+              Entra al laboratorio con una interfaz más viva.
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-emerald-50/72 sm:text-lg">
-              Retoma tus calculos, revisa tu historial y vuelve directo a los metodos numericos con una puerta de entrada mas clara y rapida.
+              Retoma tus cálculos, revisa tu historial y vuelve directo a los métodos numéricos con una puerta de entrada más clara y rápida.
             </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
             {[
               { icon: ShieldCheck, label: 'Acceso seguro', value: 'JWT activo' },
-              { icon: Flame, label: 'Sesion agil', value: '1 paso' },
+              { icon: Flame, label: 'Sesión ágil', value: '1 paso' },
               { icon: Sparkles, label: 'Vista guiada', value: 'Feedback en vivo' },
             ].map(({ icon: Icon, label, value }) => (
               <div key={label} className="rounded-[1.6rem] border border-white/10 bg-white/6 p-5 shadow-xl backdrop-blur-xl">
@@ -173,7 +173,7 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
               </div>
             </div>
             <div className="mt-6 space-y-3 font-mono text-sm text-emerald-100/70">
-              <p>1. Validacion local de campos</p>
+              <p>1. Validación local de campos</p>
               <p>2. Solicitud al backend</p>
               <p>3. Token guardado y acceso al panel</p>
             </div>
@@ -187,7 +187,7 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-100/60">
-                    {verificationMode ? 'Verificacion' : 'Inicio de sesion'}
+                    {verificationMode ? 'Verificación' : 'Inicio de sesión'}
                   </p>
                   <h2 className="mt-3 text-3xl font-black text-white">
                     {verificationMode ? 'Confirma tu cuenta' : 'Bienvenido otra vez'}
@@ -195,7 +195,7 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
                   <p className="mt-3 text-sm leading-6 text-emerald-50/65">
                     {verificationMode
                       ? 'Ingresa el codigo reenviado a tu correo para activar el acceso.'
-                      : 'Usa tu cuenta para volver a tu historial, tus resultados y el espacio de trabajo numerico.'}
+                      : 'Usa tu cuenta para volver a tu historial, tus resultados y el espacio de trabajo numérico.'}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-emerald-300/18 bg-emerald-300/10 p-3">
@@ -208,7 +208,7 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
               {verificationMode ? (
                 <form onSubmit={handleVerify} className="space-y-5">
                   <div className="rounded-[1.4rem] border border-emerald-300/15 bg-emerald-300/10 p-4 text-sm leading-6 text-emerald-50/80">
-                    {verificationMessage || `Enviamos un nuevo codigo a ${email}. La cuenta existe, pero todavia necesita verificacion.`}
+                    {verificationMessage || `Enviamos un nuevo código a ${email}. La cuenta existe, pero todavía necesita verificación.`}
                     {verificationFallbackCode ? (
                       <div className="mt-3 rounded-2xl border border-amber-300/25 bg-amber-300/12 px-4 py-3 font-mono text-2xl font-black tracking-[0.35em] text-amber-100">
                         {verificationFallbackCode}
@@ -218,7 +218,7 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
 
                   <div className="space-y-2">
                     <Label htmlFor="login-code" className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-100/72">
-                      Codigo de verificacion
+                      Código de verificación
                     </Label>
                     <div className="relative">
                       <KeyRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-200/55" />
@@ -281,7 +281,7 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-100/72">
-                    Correo electronico
+                    Correo electrónico
                   </Label>
                   <div className="relative">
                     <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-200/55" />
@@ -320,7 +320,7 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-white/40 transition hover:text-white"
-                      aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -348,7 +348,7 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
                   {loading ? (
                     <>
                       <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                      Iniciando sesion...
+                      Iniciando sesión...
                     </>
                   ) : (
                     <>
@@ -368,14 +368,14 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
                 </div>
                 <div className="rounded-[1.4rem] border border-cyan-300/12 bg-cyan-300/8 p-4">
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-100/60">Continuidad</p>
-                  <p className="mt-2 text-sm text-emerald-50/75">Regresa directo a los modulos sin repetir configuracion.</p>
+                  <p className="mt-2 text-sm text-emerald-50/75">Regresa directo a los módulos sin repetir configuración.</p>
                 </div>
               </div>
               )}
 
               {!verificationMode && (
               <div className="mt-7 text-center text-sm text-white/58">
-                No tienes cuenta?{' '}
+                ¿No tienes cuenta?{' '}
                 <button onClick={onSwitchToRegister} className="font-bold text-emerald-300 transition hover:text-cyan-300">
                   Crea una ahora
                 </button>

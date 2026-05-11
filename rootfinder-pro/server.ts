@@ -11,6 +11,7 @@ import {
   createUser,
   deleteHistoryItem,
   findUserByEmail,
+  findUserByUsername,
   initStorage,
   listHistory,
   markUserVerified,
@@ -67,6 +68,36 @@ function sanitizeText(value: unknown, maxLength: number) {
 function sanitizeNumber(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function hasSequentialDigits(password: string) {
+  const digitsOnly = password.replace(/\D/g, "");
+  if (digitsOnly.length < 4) return false;
+
+  for (let i = 0; i <= digitsOnly.length - 4; i++) {
+    let ascending = true;
+    let descending = true;
+
+    for (let j = 1; j < 4; j++) {
+      const current = Number(digitsOnly[i + j]);
+      const previous = Number(digitsOnly[i + j - 1]);
+      if (current !== previous + 1) ascending = false;
+      if (current !== previous - 1) descending = false;
+    }
+
+    if (ascending || descending) return true;
+  }
+
+  return false;
+}
+
+function sanitizeUsername(value: unknown) {
+  if (typeof value !== "string") return "";
+  return value
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9_.-]/g, "")
+    .slice(0, 40);
 }
 
 function sanitizeJsonRecord(input: unknown) {
@@ -174,7 +205,7 @@ async function startServer() {
     res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self';"
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://posgrado.uni.edu.ni; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self';"
     );
     next();
   });
@@ -187,12 +218,21 @@ async function startServer() {
 
   // Auth Routes
   app.post("/api/register", async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, username } = req.body;
     const safeEmail = sanitizeText(email, 100).toLowerCase();
     const safePassword = sanitizeText(password, 100);
+    const safeUsername = sanitizeUsername(username);
 
-    if (!safeEmail || !safePassword) {
-      return res.status(400).json({ error: "Email y contraseña requeridos" });
+    if (!safeEmail || !safePassword || !safeUsername) {
+      return res.status(400).json({ error: "Nombre de usuario, email y contraseña son requeridos" });
+    }
+
+    if (safeUsername.length < 3) {
+      return res.status(400).json({ error: "El nombre de usuario debe tener al menos 3 caracteres" });
+    }
+
+    if (hasSequentialDigits(safePassword)) {
+      return res.status(400).json({ error: "La contraseña no puede contener secuencias numéricas como 1234 o 4321" });
     }
 
     try {
@@ -201,11 +241,17 @@ async function startServer() {
         return res.status(400).json({ error: "Usuario ya existe" });
       }
 
+      const existingUsername = await findUserByUsername(USERS_FILE, safeUsername);
+      if (existingUsername) {
+        return res.status(400).json({ error: "El nombre de usuario ya esta en uso" });
+      }
+
       const hashedPassword = await bcrypt.hash(safePassword, 10);
       const verificationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
 
       const newUser = await createUser(USERS_FILE, {
+        username: safeUsername,
         email: safeEmail,
         password: hashedPassword,
         verified: false,
@@ -270,8 +316,8 @@ async function startServer() {
         });
       }
 
-      const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET);
-      res.json({ token, user: { id: user.id, email: user.email } });
+      const token = jwt.sign({ id: user.id, email: user.email, username: user.username }, JWT_SECRET);
+      res.json({ token, user: { id: user.id, username: user.username, email: user.email } });
     } catch (err) {
       console.error('Login Error:', err);
       res.status(500).json({ error: "Error al iniciar sesión" });
@@ -306,8 +352,8 @@ async function startServer() {
         return res.status(400).json({ error: "Usuario no encontrado" });
       }
 
-      const token = jwt.sign({ id: verifiedUser.id, email: verifiedUser.email }, JWT_SECRET);
-      res.json({ token, user: { id: verifiedUser.id, email: verifiedUser.email } });
+      const token = jwt.sign({ id: verifiedUser.id, email: verifiedUser.email, username: verifiedUser.username }, JWT_SECRET);
+      res.json({ token, user: { id: verifiedUser.id, username: verifiedUser.username, email: verifiedUser.email } });
     } catch (err) {
       console.error('Verify Error:', err);
       res.status(500).json({ error: "Error al verificar cuenta" });
@@ -326,6 +372,7 @@ async function startServer() {
       res.json({
         user: {
           id: user.id,
+          username: user.username,
           email: user.email,
         },
       });

@@ -2,7 +2,6 @@ import { cn } from '@/lib/utils';
 import { AppTab } from '@/types';
 import {
   CircleDot,
-  Compass,
   FlaskConical,
   History,
   LineChart,
@@ -44,7 +43,6 @@ const moduleTabs = [
 ] as const;
 
 const resolutionSections = [
-  { id: 'verification', label: 'Verificación', hint: 'Base analítica', icon: Compass },
   { id: 'methods', label: 'Métodos', hint: 'Configuración y cálculo', icon: SlidersHorizontal },
   { id: 'results', label: 'Resultados', hint: 'Salida numérica', icon: FlaskConical },
   { id: 'graph', label: 'Gráficas', hint: 'Lectura visual', icon: LineChart },
@@ -52,6 +50,8 @@ const resolutionSections = [
 ] as const;
 
 export function Navbar({ activeTab, setActiveTab, user, onLogout }: NavbarProps) {
+  const displayName = user?.username?.trim?.() || user?.email || 'Usuario';
+
   const activeModule =
     activeTab === 'systems'
       ? 'systems'
@@ -202,24 +202,24 @@ export function Navbar({ activeTab, setActiveTab, user, onLogout }: NavbarProps)
 
       {user && (
         <div className="border-t border-primary/10 px-4 py-4">
-          <div className="flex items-center justify-between rounded-[1.35rem] border border-primary/10 bg-background/55 p-3">
+          <div className="rounded-[1.35rem] border border-primary/10 bg-background/55 p-3">
             <div className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/15 bg-primary/18">
                 <span className="text-sm font-semibold text-primary">
-                  {user.email?.charAt(0).toUpperCase()}
+                  {displayName.charAt(0).toUpperCase()}
                 </span>
               </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">{user.email}</p>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{displayName}</p>
                 <p className="text-[11px] text-muted-foreground">Sesión activa</p>
+                <button
+                  onClick={onLogout}
+                  className="mt-2 inline-flex rounded-xl px-0 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-destructive"
+                >
+                  Cerrar sesión
+                </button>
               </div>
             </div>
-            <button
-              onClick={onLogout}
-              className="rounded-xl px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-            >
-              Cerrar sesión
-            </button>
           </div>
         </div>
       )}

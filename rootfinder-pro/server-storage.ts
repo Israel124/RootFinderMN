@@ -17,6 +17,7 @@ export const storageMode = pool ? "postgres" : "json";
 
 export interface StoredUser {
   id: string;
+  username: string;
   email: string;
   password: string;
   verified: boolean;
@@ -65,6 +66,7 @@ async function saveJsonArray<T>(filePath: string, items: T[]) {
 function mapUserRow(row: any): StoredUser {
   return {
     id: row.id,
+    username: row.username,
     email: row.email,
     password: row.password_hash,
     verified: row.verified,
@@ -105,6 +107,7 @@ export async function initStorage(usersFile: string, historyFile: string) {
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         verified BOOLEAN NOT NULL DEFAULT FALSE,
@@ -114,6 +117,24 @@ export async function initStorage(usersFile: string, historyFile: string) {
         updated_at BIGINT NOT NULL
       );
     `);
+
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='username') THEN
+          ALTER TABLE users ADD COLUMN username TEXT;
+        END IF;
+      END $$;
+    `);
+
+    await client.query(`
+      UPDATE users
+      SET username = split_part(email, '@', 1)
+      WHERE username IS NULL OR btrim(username) = '';
+    `);
+
+    await client.query("ALTER TABLE users ALTER COLUMN username SET NOT NULL;");
+    await client.query("CREATE UNIQUE INDEX IF NOT EXISTS users_username_key ON users (username);");
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS calculations (
@@ -150,11 +171,12 @@ export async function initStorage(usersFile: string, historyFile: string) {
 
       await client.query(
         `INSERT INTO users
-          (id, email, password_hash, verified, verification_code, verification_expires_at, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          (id, username, email, password_hash, verified, verification_code, verification_expires_at, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (email) DO NOTHING`,
         [
           user.id,
+          user.username || user.email.split("@")[0],
           user.email,
           user.password,
           Boolean(user.verified),
@@ -210,6 +232,16 @@ export async function findUserByEmail(usersFile: string, email: string): Promise
   return users.find((user) => user.email === email) || null;
 }
 
+export async function findUserByUsername(usersFile: string, username: string): Promise<StoredUser | null> {
+  if (pool) {
+    const result = await pool.query("SELECT * FROM users WHERE username = $1", [username]);
+    return result.rows[0] ? mapUserRow(result.rows[0]) : null;
+  }
+
+  const users = await loadJsonArray<StoredUser>(usersFile);
+  return users.find((user) => user.username === username) || null;
+}
+
 export async function createUser(
   usersFile: string,
   user: Omit<StoredUser, "id" | "createdAt"> & { id?: string; createdAt?: number },
@@ -217,6 +249,7 @@ export async function createUser(
   const now = Date.now();
   const newUser: StoredUser = {
     id: user.id || randomUUID(),
+    username: user.username,
     email: user.email,
     password: user.password,
     verified: user.verified,
@@ -228,10 +261,11 @@ export async function createUser(
   if (pool) {
     await pool.query(
       `INSERT INTO users
-        (id, email, password_hash, verified, verification_code, verification_expires_at, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        (id, username, email, password_hash, verified, verification_code, verification_expires_at, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         newUser.id,
+        newUser.username,
         newUser.email,
         newUser.password,
         newUser.verified,
