@@ -15,8 +15,11 @@ import { cn } from '@/lib/utils';
 
 interface MethodsSectionProps {
   f: string;
+  setF: (f: string) => void;
   a: string;
+  setA: (a: string) => void;
   b: string;
+  setB: (b: string) => void;
   method: MethodType;
   setMethod: (m: MethodType) => void;
   tol: string;
@@ -37,7 +40,7 @@ interface MethodsSectionProps {
 type FixedPointMode = 'automatic' | 'manual';
 
 export function MethodsSection({
-  f, a, b,
+  f, setF, a, setA, b, setB,
   method, setMethod,
   tol, setTol,
   maxIter, setMaxIter,
@@ -56,6 +59,45 @@ export function MethodsSection({
   const parsedB = parseNumericInput(b);
   const parsedX0 = parseNumericInput(x0);
   const parsedG1 = parseNumericInput(g1);
+  const verificationSnapshot = useMemo(() => {
+    if (!f.trim()) {
+      return { status: 'empty' as const, message: 'Define f(x) para desbloquear el flujo de resolución.' };
+    }
+
+    if (!MathEvaluator.isValid(f)) {
+      return { status: 'invalid' as const, message: 'La sintaxis de f(x) todavía es inválida.' };
+    }
+
+    if (Number.isNaN(parsedA) || Number.isNaN(parsedB)) {
+      return { status: 'incomplete' as const, message: 'Completa el intervalo [a, b] para validar signo y referencia.' };
+    }
+
+    if (parsedA >= parsedB) {
+      return { status: 'invalid' as const, message: 'El extremo a debe ser menor que b.' };
+    }
+
+    try {
+      const midpoint = (parsedA + parsedB) / 2;
+      const fa = MathEvaluator.evaluate(f, parsedA);
+      const fb = MathEvaluator.evaluate(f, parsedB);
+      const fm = MathEvaluator.evaluate(f, midpoint);
+      const derivative = MathEvaluator.getDerivativeExpression(f);
+      return {
+        status: 'ready' as const,
+        fa,
+        fb,
+        fm,
+        midpoint,
+        derivative,
+        signChange: fa * fb < 0,
+      };
+    } catch (error: any) {
+      return {
+        status: 'invalid' as const,
+        message: error?.message ? `No se pudo evaluar en el intervalo: ${error.message}` : 'No se pudo evaluar f(x) en el intervalo.',
+      };
+    }
+  }, [f, parsedA, parsedB]);
   const fixedPointProbe = !Number.isNaN(parsedG1) ? parsedG1 : parsedX0;
   const hasValidFixedPointBase = method === 'fixed-point' && f.trim() && MathEvaluator.isValid(f) && !Number.isNaN(fixedPointProbe);
 
@@ -152,12 +194,12 @@ export function MethodsSection({
     setX0(a || '0');
     setX1(b || '1');
     setG1(a || '0');
-    toast.info('Valores sincronizados con la verificación');
+    toast.info('Semillas sincronizadas con la entrada base');
   };
 
   const handleCalculate = () => {
-    if (!f.trim()) return toast.error('Ingresa una función f(x) en la pestaña de verificación');
-    if (!MathEvaluator.isValid(f)) return toast.error('La función f(x) en la pestaña de verificación es inválida');
+    if (!f.trim()) return toast.error('Ingresa una función f(x) antes de calcular');
+    if (!MathEvaluator.isValid(f)) return toast.error('La función f(x) es inválida');
 
     const t = parseNumericInput(tol);
     const m = parseInt(maxIter);
@@ -280,6 +322,111 @@ export function MethodsSection({
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
+      <Card className="overflow-hidden border-primary/10 bg-linear-to-br from-primary/10 via-card/82 to-card/92 shadow-2xl backdrop-blur-xl">
+        <CardContent className="p-0">
+          <div className="grid gap-0 lg:grid-cols-[1.45fr_0.95fr]">
+            <div className="border-b border-primary/10 p-6 lg:border-b-0 lg:border-r">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="max-w-2xl">
+                  <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary/65">Entrada Base</p>
+                  <h2 className="mt-3 text-3xl font-black tracking-tight text-foreground">Resuelve sin salir de este panel</h2>
+                  <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                    Ajusta la función, el intervalo y las semillas aquí mismo. La validación rápida queda integrada para evitar estar entrando y saliendo entre pestañas.
+                  </p>
+                </div>
+                <div className="rounded-[1.4rem] border border-primary/20 bg-background/45 px-4 py-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Ruta activa</p>
+                  <p className="mt-2 text-lg font-black text-primary">{methodLabels[method]}</p>
+                  <p className="mt-1 max-w-[16rem] text-xs text-muted-foreground">{methodHints[method]}</p>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="methods-fx" className="text-primary/70 font-bold uppercase text-[11px] tracking-[0.22em]">f(x)</Label>
+                  <Input
+                    id="methods-fx"
+                    value={f}
+                    onChange={(e) => setF(e.target.value)}
+                    placeholder="Ej: x^3 - x - 2, sin(x) - x/2, exp(x) - 3*x"
+                    className="h-14 bg-background/55 font-mono text-base border-primary/20"
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="methods-a" className="text-primary/70 font-bold uppercase text-[11px] tracking-[0.22em]">Extremo a</Label>
+                    <Input
+                      id="methods-a"
+                      type="number"
+                      step="any"
+                      value={a}
+                      onChange={(e) => setA(e.target.value)}
+                      placeholder="-5"
+                      className="h-12 bg-background/55 border-primary/20"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="methods-b" className="text-primary/70 font-bold uppercase text-[11px] tracking-[0.22em]">Extremo b</Label>
+                    <Input
+                      id="methods-b"
+                      type="number"
+                      step="any"
+                      value={b}
+                      onChange={(e) => setB(e.target.value)}
+                      placeholder="5"
+                      className="h-12 bg-background/55 border-primary/20"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary/65">Diagnóstico Rápido</p>
+              {verificationSnapshot.status === 'ready' ? (
+                <div className="mt-4 space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-2xl border border-primary/10 bg-background/40 p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">f(a)</p>
+                      <p className="mt-2 font-mono text-sm text-primary">{verificationSnapshot.fa.toFixed(6)}</p>
+                    </div>
+                    <div className="rounded-2xl border border-primary/10 bg-background/40 p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">f(b)</p>
+                      <p className="mt-2 font-mono text-sm text-primary">{verificationSnapshot.fb.toFixed(6)}</p>
+                    </div>
+                    <div className="rounded-2xl border border-primary/10 bg-background/40 p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">f(m)</p>
+                      <p className="mt-2 font-mono text-sm text-primary">{verificationSnapshot.fm.toFixed(6)}</p>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-primary/15 bg-primary/7 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-primary/70">Lectura inmediata</p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {verificationSnapshot.signChange
+                        ? 'Hay cambio de signo en el intervalo. Bisección y regla falsa tienen una base sólida aquí.'
+                        : 'No hay cambio de signo. Prioriza Newton, secante o un intervalo distinto antes de insistir con métodos cerrados.'}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">f&apos;(x)</p>
+                    <p className="mt-2 break-words font-mono text-xs text-foreground">{verificationSnapshot.derivative}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-[1.6rem] border border-dashed border-primary/20 bg-background/28 p-5">
+                  <p className="text-sm font-semibold text-foreground">
+                    {verificationSnapshot.message}
+                  </p>
+                  <p className="mt-2 text-xs leading-6 text-muted-foreground">
+                    Cuando la entrada esté consistente, aquí aparecerán signos, valores de referencia y una lectura rápida del intervalo.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
         <Card className="border-primary/10 bg-card/60 backdrop-blur-sm shadow-2xl">
           <CardHeader className="border-b border-primary/10 bg-linear-to-r from-primary/10 via-transparent to-transparent">

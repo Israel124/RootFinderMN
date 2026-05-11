@@ -314,6 +314,27 @@ async function startServer() {
     }
   });
 
+  app.get("/api/me", authenticateToken, async (req, res) => {
+    try {
+      const authUser = (req as any).user;
+      const user = await findUserByEmail(USERS_FILE, sanitizeText(authUser?.email, 100).toLowerCase());
+
+      if (!user) {
+        return res.status(404).json({ error: "Usuario no encontrado" });
+      }
+
+      res.json({
+        user: {
+          id: user.id,
+          email: user.email,
+        },
+      });
+    } catch (err) {
+      console.error('Me Error:', err);
+      res.status(500).json({ error: "No se pudo validar la sesion" });
+    }
+  });
+
   // API Routes
   app.get("/api/history", authenticateToken, async (req, res) => {
     try {

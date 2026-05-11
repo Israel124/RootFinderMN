@@ -6,12 +6,6 @@
 import { CSSProperties, lazy, Suspense, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Navbar } from './components/Navbar';
-import { VerificationSection } from './components/VerificationSection';
-import { MethodsSection } from './components/MethodsSection';
-import { PolynomialSection } from './components/PolynomialSection';
-import { ResultsSection } from './components/ResultsSection';
-import { Login } from './components/Login';
-import { Register } from './components/Register';
 import {
   POLYNOMIAL_HISTORY_KEY,
   POLYNOMIAL_HISTORY_UPDATED_EVENT,
@@ -43,11 +37,29 @@ import { Button } from '@/components/ui/button';
 import { DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { clearHistoryItems, deleteHistoryItem, fetchHistory, saveHistoryItem, updateHistoryLabel } from '@/lib/historyApi';
+import { apiUrl } from '@/lib/apiConfig';
 
+const Login = lazy(() => import('./components/Login').then((module) => ({ default: module.Login })));
+const Register = lazy(() => import('./components/Register').then((module) => ({ default: module.Register })));
+const VerificationSection = lazy(() => import('./components/VerificationSection').then((module) => ({ default: module.VerificationSection })));
+const MethodsSection = lazy(() => import('./components/MethodsSection').then((module) => ({ default: module.MethodsSection })));
+const PolynomialSection = lazy(() => import('./components/PolynomialSection').then((module) => ({ default: module.PolynomialSection })));
+const ResultsSection = lazy(() => import('./components/ResultsSection').then((module) => ({ default: module.ResultsSection })));
 const HistorySection = lazy(() => import('./components/HistorySection').then((module) => ({ default: module.HistorySection })));
 const GraphSection = lazy(() => import('./components/GraphSection').then((module) => ({ default: module.GraphSection })));
 const NewtonSystemSection = lazy(() => import('./components/NewtonSystemSection').then((module) => ({ default: module.NewtonSystemSection })));
 const TaylorSection = lazy(() => import('./components/TaylorSection').then((module) => ({ default: module.TaylorSection })));
+
+function ModuleLoader({ label = 'Cargando modulo...' }: { label?: string }) {
+  return (
+    <div className="flex min-h-[420px] items-center justify-center rounded-[2rem] border border-primary/10 bg-card/50">
+      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+        <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
+        {label}
+      </div>
+    </div>
+  );
+}
 
 const getModuleTheme = (tab: AppTab) => {
   if (tab === 'taylor') {
@@ -81,8 +93,54 @@ const getModuleTheme = (tab: AppTab) => {
   };
 };
 
+const USER_STORAGE_KEY = 'rootfinder.user';
+
+function decodeTokenPayload(token: string) {
+  try {
+    const [, payload] = token.split('.');
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = atob(normalized);
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
+function readStoredUser() {
+  if (typeof window === 'undefined') return null;
+
+  const rawUser = window.localStorage.getItem(USER_STORAGE_KEY);
+  if (rawUser) {
+    try {
+      const parsed = JSON.parse(rawUser);
+      if (parsed && typeof parsed === 'object' && typeof parsed.email === 'string') {
+        return parsed;
+      }
+    } catch {
+      window.localStorage.removeItem(USER_STORAGE_KEY);
+    }
+  }
+
+  const token = window.localStorage.getItem('token');
+  if (!token) return null;
+
+  const payload = decodeTokenPayload(token);
+  if (payload && typeof payload.email === 'string') {
+    return { id: payload.id, email: payload.email };
+  }
+
+  return null;
+}
+
+function clearStoredSession() {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem('token');
+  window.localStorage.removeItem(USER_STORAGE_KEY);
+}
+
 const universityImage =
-  'https://assets.agris.fao.org/public/styles/fao_ui_banner/public/images/2024-02/420049206_758805662963701_6273589032551930458_n.jpeg?itok=32mHwNjl';
+  'https://posgrado.uni.edu.ni/wp-content/uploads/2020/02/EDIFICIO-UNI-1920x620.jpg';
 
 interface LandingHeroProps {
   onOpenApp: (tab?: AppAccessTab) => void;
@@ -209,6 +267,19 @@ function LandingHero({ onOpenApp, onOpenMethods, onLogin }: LandingHeroProps) {
                 Explorar métodos
               </button>
             </div>
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              {[
+                { title: 'Taylor', detail: 'Series, truncamiento y error' },
+                { title: 'Resolución', detail: 'Verificación, métodos y resultados' },
+                { title: 'Polinomios', detail: 'Müller, Bairstow y Horner' },
+              ].map((item) => (
+                <div key={item.title} className="rounded-[1.4rem] border border-white/12 bg-black/25 p-4 backdrop-blur-md">
+                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-100/65">{item.title}</p>
+                  <p className="mt-3 text-sm leading-6 text-white/72">{item.detail}</p>
+                </div>
+              ))}
+            </div>
           </motion.div>
 
           <motion.div
@@ -241,6 +312,16 @@ function LandingHero({ onOpenApp, onOpenMethods, onLogin }: LandingHeroProps) {
             </div>
             <p className="mt-4 font-mono text-sm text-cyan-100/86">f(x) = x^2 - 4 | raíz detectada: 2</p>
           </motion.div>
+        </div>
+
+        <div className="mt-8 flex flex-col gap-4 border-t border-white/10 pt-5 text-sm text-emerald-50/66 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="font-black uppercase tracking-[0.22em] text-emerald-100/74">UNI Managua</p>
+            <p className="mt-1">Laboratorio visual para métodos numéricos con enfoque académico.</p>
+          </div>
+          <div className="rounded-full border border-white/12 bg-black/24 px-4 py-2 font-mono text-xs text-cyan-100/78">
+            Módulos: Taylor · Resolución · Polinomios · Sistemas
+          </div>
         </div>
       </div>
     </section>
@@ -285,24 +366,72 @@ export default function App() {
   const [polynomialHistoryCount, setPolynomialHistoryCount] = useState(0);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [authBootstrapped, setAuthBootstrapped] = useState(false);
 
   // Auth check
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      // TODO: Validate token with server
-      setUser({ email: 'user@example.com' }); // Placeholder
+    let cancelled = false;
+    const token = typeof window !== 'undefined' ? window.localStorage.getItem('token') : null;
+    const storedUser = readStoredUser();
+
+    if (storedUser) {
+      setUser(storedUser);
     }
+
+    if (!token) {
+      setAuthBootstrapped(true);
+      return;
+    }
+
+    fetch(apiUrl('/api/me'), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('Sesion invalida');
+        }
+
+        const data = await response.json();
+        if (cancelled) return;
+
+        if (data?.user?.email) {
+          window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data.user));
+          setUser(data.user);
+        } else {
+          clearStoredSession();
+          setUser(null);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        clearStoredSession();
+        setUser(null);
+        setAuthMode(null);
+        setPage('landing');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAuthBootstrapped(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleLogin = (token: string, userData: any) => {
     localStorage.setItem('token', token);
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userData));
     setUser(userData);
     navigateToApp(pendingTab);
   };
 
   const handleRegister = (token: string, userData: any) => {
     localStorage.setItem('token', token);
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userData));
     setUser(userData);
     navigateToApp(pendingTab);
   };
@@ -318,7 +447,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    clearStoredSession();
     setUser(null);
     setAuthMode(null);
     setPage('landing');
@@ -590,26 +719,30 @@ export default function App() {
 
   return (
     <div className={cn('min-h-screen bg-background text-foreground font-sans selection:bg-primary/20', activeModuleMetadata.themeClass)}>
-      {!user ? (
-        authMode ? (
-          authMode === 'login' ? (
-            <Login
-              onLogin={handleLogin}
-              onSwitchToRegister={() => setAuthMode('register')}
-            />
+      {!authBootstrapped ? (
+        <ModuleLoader label="Validando sesion..." />
+      ) : !user ? (
+        <Suspense fallback={<ModuleLoader label="Preparando acceso..." />}>
+          {authMode ? (
+            authMode === 'login' ? (
+              <Login
+                onLogin={handleLogin}
+                onSwitchToRegister={() => setAuthMode('register')}
+              />
+            ) : (
+              <Register
+                onRegister={handleRegister}
+                onSwitchToLogin={() => setAuthMode('login')}
+              />
+            )
           ) : (
-            <Register
-              onRegister={handleRegister}
-              onSwitchToLogin={() => setAuthMode('login')}
+            <LandingHero
+              onOpenApp={(tab = 'verification') => requestAppAccess(tab)}
+              onOpenMethods={() => requestAppAccess('methods')}
+              onLogin={() => setAuthMode('login')}
             />
-          )
-        ) : (
-          <LandingHero
-            onOpenApp={(tab = 'verification') => requestAppAccess(tab)}
-            onOpenMethods={() => requestAppAccess('methods')}
-            onLogin={() => setAuthMode('login')}
-          />
-        )
+          )}
+        </Suspense>
       ) : page === 'landing' ? (
         <LandingHero
           onOpenApp={(tab = 'verification') => requestAppAccess(tab)}
@@ -658,8 +791,7 @@ export default function App() {
                 <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary/60">Panel Principal</p>
                 <h2 className="mt-4 text-3xl font-black tracking-tight text-foreground sm:text-4xl">{activeModuleMetadata.title}</h2>
                 <p className="mt-4 text-sm leading-7 text-muted-foreground sm:text-base">
-                  Explora {activeModuleMetadata.subtitle.toLowerCase()} y aplica la paleta activa para graficas, cuadros e interacciones.
-                  Esta vista prioriza el proceso académico antes de llegar a los métodos de resolución.
+                  Explora {activeModuleMetadata.subtitle.toLowerCase()} con una interfaz más continua, pensada para configurar, calcular y revisar resultados sin romper el flujo de trabajo.
                 </p>
               </div>
               <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-xl shadow-white/5">
@@ -684,79 +816,83 @@ export default function App() {
             </div>
             <div className="rounded-[2rem] border border-primary/10 bg-card/55 p-6 shadow-xl backdrop-blur-xl">
               <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/60">Siguiente paso</p>
-              <p className="mt-3 text-xl font-black">Métodos de resolución</p>
-              <p className="mt-2 text-sm text-muted-foreground">Accede rápidamente a los métodos numéricos cuando necesites resolver la ecuación.</p>
+              <p className="mt-3 text-xl font-black">Flujo directo de resolución</p>
+              <p className="mt-2 text-sm text-muted-foreground">Ahora puedes ajustar la entrada base y ejecutar métodos dentro del mismo panel de trabajo.</p>
                 </div>
               </div>
             </section>
 
-            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={handleLogout} />
+            <section className="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start">
+              <div className="space-y-6">
+                <Navbar activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={handleLogout} />
+                <div className="hidden rounded-[1.7rem] border border-primary/10 bg-card/70 p-5 shadow-xl backdrop-blur-xl lg:block">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Navegación rápida</p>
+                  <p className="mt-3 text-lg font-black text-foreground">{activeModuleMetadata.title}</p>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    El panel lateral queda fijo para que cambies de módulo o pestaña sin volver arriba en cada navegación.
+                  </p>
+                </div>
+              </div>
 
-            <div className="relative min-h-[600px]">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeTab}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Suspense
-                    fallback={
-                      <div className="flex min-h-[420px] items-center justify-center rounded-[2rem] border border-primary/10 bg-card/50">
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                          <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
-                          Cargando modulo...
-                        </div>
-                      </div>
-                    }
+              <div className="relative min-h-[600px]">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeTab}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
                   >
-                    {activeTab === 'verification' && (
-                      <VerificationSection f={f} setF={setF} a={a} setA={setA} b={b} setB={setB} />
-                    )}
-                    {activeTab === 'taylor' && (
-                      <TaylorSection />
-                    )}
-                    {activeTab === 'methods' && (
-                      <MethodsSection 
-                        f={f} a={a} b={b} 
-                        method={method} setMethod={setMethod}
-                        tol={tol} setTol={setTol}
-                        maxIter={maxIter} setMaxIter={setMaxIter}
-                        x0={x0} setX0={setX0}
-                        x1={x1} setX1={setX1}
-                        gx={gx} setGx={setGx}
-                        g1={g1} setG1={setG1}
-                        onResult={handleNewResult} 
-                      />
-                    )}
-                    {activeTab === 'polynomial' && (
-                      <PolynomialSection />
-                    )}
-                    {activeTab === 'results' && (
-                      <ResultsSection result={currentResult} />
-                    )}
-                    {activeTab === 'history' && (
-                      <HistorySection 
-                        history={history} 
-                        onDelete={handleDeleteHistory} 
-                        onClear={handleClearHistory}
-                        onLoad={handleLoadHistory}
-                        onUpdate={handleUpdateHistory}
-                        onNavigateToTab={setActiveTab}
-                        view="resolution"
-                      />
-                    )}
-                    {activeTab === 'graph' && (
-                      <GraphSection f={f} root={currentResult?.root || null} />
-                    )}
-                    {activeTab === 'systems' && (
-                      <NewtonSystemSection />
-                    )}
-                  </Suspense>
-                </motion.div>
-              </AnimatePresence>
-            </div>
+                    <Suspense
+                      fallback={<ModuleLoader />}
+                    >
+                      {activeTab === 'verification' && (
+                        <VerificationSection f={f} setF={setF} a={a} setA={setA} b={b} setB={setB} />
+                      )}
+                      {activeTab === 'taylor' && (
+                        <TaylorSection />
+                      )}
+                      {activeTab === 'methods' && (
+                        <MethodsSection 
+                          f={f} setF={setF} a={a} setA={setA} b={b} setB={setB}
+                          method={method} setMethod={setMethod}
+                          tol={tol} setTol={setTol}
+                          maxIter={maxIter} setMaxIter={setMaxIter}
+                          x0={x0} setX0={setX0}
+                          x1={x1} setX1={setX1}
+                          gx={gx} setGx={setGx}
+                          g1={g1} setG1={setG1}
+                          onResult={handleNewResult} 
+                        />
+                      )}
+                      {activeTab === 'polynomial' && (
+                        <PolynomialSection />
+                      )}
+                      {activeTab === 'results' && (
+                        <ResultsSection result={currentResult} />
+                      )}
+                      {activeTab === 'history' && (
+                        <HistorySection 
+                          history={history} 
+                          onDelete={handleDeleteHistory} 
+                          onClear={handleClearHistory}
+                          onLoad={handleLoadHistory}
+                          onUpdate={handleUpdateHistory}
+                          onNavigateToTab={setActiveTab}
+                          view="resolution"
+                        />
+                      )}
+                      {activeTab === 'graph' && (
+                        <GraphSection f={f} root={currentResult?.root || null} />
+                      )}
+                      {activeTab === 'systems' && (
+                        <NewtonSystemSection />
+                      )}
+                    </Suspense>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            </section>
 
             <AnimatePresence>
               {hasChanges && (

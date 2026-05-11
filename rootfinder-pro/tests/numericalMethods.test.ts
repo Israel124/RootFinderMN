@@ -59,3 +59,23 @@ test('Newton-Raphson para sistema detecta Jacobiana singular', () => {
   assert.equal(result.converged, false);
   assert.match(result.message, /Jacobiana singular/);
 });
+
+test('Punto fijo acepta transformaciones con |g\'(x)| menor que 1 sin margen artificial', () => {
+  const candidates = NumericalMethods.generateFixedPointCandidates('-0.04*x + 1', 0, { a: 0, b: 2 });
+  const candidate = candidates.find((item) => item.expression === 'x + (0.25) * (-0.04*x + 1)');
+
+  if (!candidate) {
+    assert.fail('No se encontró la candidata esperada para |g\'(x)| = 0.99');
+  }
+
+  assert.equal(candidate.derivativeAtPoint, 0.99);
+  assert.equal(candidate.convergent, true);
+});
+
+test('Punto fijo valida la raiz en x(i+1) antes de declarar convergencia', () => {
+  const result = NumericalMethods.fixedPointWithTransformation('x', 'x + 1', 0, 1e-6, 5);
+
+  assert.equal(result.converged, false);
+  assert.equal(result.root, 5);
+  assert.equal(result.message, 'No se alcanzó la convergencia en el máximo de iteraciones');
+});

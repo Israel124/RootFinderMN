@@ -9,7 +9,7 @@ import {
 } from '../types';
 
 export class NumericalMethods {
-  private static readonly FIXED_POINT_TOLERANCE = 0.98;
+  private static readonly FIXED_POINT_TOLERANCE = 1;
 
   private static calculateError(current: number, previous: number | null): { ea: number; er: number } {
     if (previous === null) return { ea: 0, er: 0 };
@@ -404,10 +404,12 @@ export class NumericalMethods {
       let xiNext: number;
       let dgi: number | null = null;
       let fxi: number | null = null;
+      let fxiNext: number | null = null;
       
       try {
         xiNext = MathEvaluator.evaluate(g, xi);
         fxi = MathEvaluator.evaluate(f, xi);
+        fxiNext = MathEvaluator.evaluate(f, xiNext);
         try {
           dgi = MathEvaluator.derivative(g, xi);
         } catch {}
@@ -427,7 +429,7 @@ export class NumericalMethods {
         er: er.toFixed(6) + '%'
       });
 
-      if (ea <= tol || (fxi !== null && Math.abs(fxi) < 1e-15)) {
+      if (ea <= tol || (fxiNext !== null && Math.abs(fxiNext) < 1e-15)) {
         xi = xiNext;
         converged = true;
         break;

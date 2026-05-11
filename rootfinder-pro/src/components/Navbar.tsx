@@ -1,7 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { ChevronDown, CircleDot } from 'lucide-react';
 import { AppTab } from '@/types';
+import {
+  CircleDot,
+  Compass,
+  FlaskConical,
+  History,
+  LineChart,
+  SlidersHorizontal,
+} from 'lucide-react';
 
 interface NavbarProps {
   activeTab: AppTab;
@@ -16,42 +22,36 @@ const moduleTabs = [
     step: '1',
     title: 'Aproximaciones Taylor',
     subtitle: 'Series y error de truncamiento',
-    color: 'emerald',
   },
   {
     id: 'resolution',
     step: '2',
     title: 'Métodos de Resolución',
     subtitle: 'Ecuaciones no lineales',
-    color: 'cyan',
   },
   {
     id: 'polynomial',
     step: '3',
     title: 'Raíces Polinómicas',
     subtitle: 'Müller · Bairstow · Horner',
-    color: 'amber',
   },
   {
     id: 'systems',
     step: '4',
     title: 'Newton-Raphson Sistemas',
     subtitle: 'Ecuaciones no lineales múltiples',
-    color: 'rose',
   },
 ] as const;
 
 const resolutionSections = [
-  { id: 'verification', label: 'Verificación' },
-  { id: 'methods', label: 'Métodos' },
-  { id: 'results', label: 'Resultados' },
-  { id: 'graph', label: 'Gráficas' },
-  { id: 'history', label: 'Historial' },
+  { id: 'verification', label: 'Verificación', hint: 'Base analítica', icon: Compass },
+  { id: 'methods', label: 'Métodos', hint: 'Configuración y cálculo', icon: SlidersHorizontal },
+  { id: 'results', label: 'Resultados', hint: 'Salida numérica', icon: FlaskConical },
+  { id: 'graph', label: 'Gráficas', hint: 'Lectura visual', icon: LineChart },
+  { id: 'history', label: 'Historial', hint: 'Trazabilidad', icon: History },
 ] as const;
 
 export function Navbar({ activeTab, setActiveTab, user, onLogout }: NavbarProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const activeModule =
     activeTab === 'systems'
       ? 'systems'
@@ -76,132 +76,151 @@ export function Navbar({ activeTab, setActiveTab, user, onLogout }: NavbarProps)
     }
   };
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const currentSection =
     resolutionSections.find((section) => section.id === activeTab)?.label ?? 'Métodos';
 
   return (
     <nav
-      ref={menuRef}
       aria-label="Navegacion principal de modulos"
-      className="mb-8 rounded-[1.8rem] border border-primary/10 bg-card/80 px-3 py-3 shadow-xl backdrop-blur-xl"
+      className="overflow-hidden rounded-[2rem] border border-primary/10 bg-card/82 shadow-2xl backdrop-blur-xl lg:sticky lg:top-28"
     >
-      <div className="grid gap-2 xl:grid-cols-3">
-        {moduleTabs.map((tab) => {
-          const isResolution = tab.id === 'resolution';
-          const isSelected = tab.id === activeModule;
-          const isSelectedTabStyle = isSelected ? tabColorClass(tab.id) : 'border-transparent bg-background/35 opacity-80';
-          const dotStyle = isSelected ? tabColorClass(tab.id) : 'text-slate-400/60';
+      <div className="border-b border-primary/10 bg-linear-to-r from-primary/8 via-transparent to-transparent px-4 py-4">
+        <div className="grid gap-2 lg:grid-cols-1">
+          {moduleTabs.map((tab) => {
+            const isResolution = tab.id === 'resolution';
+            const isSelected = tab.id === activeModule;
+            const isSelectedTabStyle = isSelected ? tabColorClass(tab.id) : 'border-transparent bg-background/35 opacity-80';
+            const dotStyle = isSelected ? tabColorClass(tab.id) : 'text-slate-400/60';
 
-          return (
-            <div key={tab.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  if (isResolution) {
-                    setMenuOpen((open) => !open);
-                    return;
-                  }
-                  setActiveTab(tab.id);
-                  setMenuOpen(false);
-                }}
-                className={cn(
-                  'flex w-full items-start gap-3 rounded-[1.4rem] border px-4 py-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
-                  isSelected ? isSelectedTabStyle : 'border-transparent bg-background/35 opacity-80'
-                )}
-              >
-                <div className={cn(
-                  'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
-                  isSelected ? tabColorClass(tab.id) : 'bg-muted text-muted-foreground'
-                )}>
-                  {tab.step}
-                </div>
+            return (
+              <div key={tab.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isResolution) {
+                      setActiveTab(activeModule === 'resolution' ? activeTab : 'methods');
+                      return;
+                    }
+                    setActiveTab(tab.id);
+                  }}
+                  className={cn(
+                    'flex w-full items-start gap-3 rounded-[1.4rem] border px-4 py-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
+                    isSelected ? isSelectedTabStyle : 'border-transparent bg-background/35 opacity-80'
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                      isSelected ? tabColorClass(tab.id) : 'bg-muted text-muted-foreground'
+                    )}
+                  >
+                    {tab.step}
+                  </div>
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-semibold text-foreground">{tab.title}</p>
-                    <CircleDot className={cn('h-3 w-3 shrink-0', dotStyle)} aria-hidden="true" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-foreground">{tab.title}</p>
+                      <CircleDot className={cn('h-3 w-3 shrink-0', dotStyle)} aria-hidden="true" />
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">{tab.subtitle}</p>
                     {isResolution && (
-                      <ChevronDown
-                        className={cn(
-                          'h-4 w-4 shrink-0 transition-transform',
-                          menuOpen ? 'rotate-180 text-cyan-300' : 'text-muted-foreground'
-                        )}
-                      />
+                      <p className="mt-1 truncate text-[11px] font-medium text-primary/80">
+                        Vista actual: {currentSection}
+                      </p>
                     )}
                   </div>
-                  <p className="truncate text-xs text-muted-foreground">{tab.subtitle}</p>
-                  {isResolution && (
-                    <p className="mt-1 truncate text-[11px] font-medium text-primary/80">
-                      Vista actual: {currentSection}
-                    </p>
-                  )}
-                </div>
-              </button>
-            </div>
-          );
-        })}
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {menuOpen && (
-        <div className="mt-3 rounded-[1.2rem] border border-primary/10 bg-background/55 p-3 shadow-inner">
-          <p className="px-2 pb-3 pt-1 text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">
-            Secciones disponibles
-          </p>
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-            {resolutionSections.map((section) => (
-              <button
-                key={section.id}
-                type="button"
-                onClick={() => {
-                  setActiveTab(section.id);
-                  setMenuOpen(false);
-                }}
-                className={cn(
-                  'flex w-full items-center justify-between rounded-2xl px-3 py-3 text-left text-sm transition-all',
-                  activeTab === section.id
-                    ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
-                    : 'bg-card/75 text-foreground hover:bg-primary/8'
-                )}
-              >
-                <span>{section.label}</span>
-                {activeTab === section.id && (
-                  <span className="text-[11px] font-semibold">Activa</span>
-                )}
-              </button>
-            ))}
+      {activeModule === 'resolution' && (
+        <div className="grid gap-4 px-4 py-4">
+          <div className="rounded-[1.5rem] border border-primary/10 bg-background/45 p-4 shadow-inner shadow-primary/5">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">
+                Flujo de Resolución
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Cambia de etapa sin desplegables. La ruta actual es <span className="font-semibold text-foreground">{currentSection}</span>.
+              </p>
+            </div>
+            <div className="mt-4 grid gap-2">
+              {resolutionSections.map((section) => {
+                const Icon = section.icon;
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    onClick={() => setActiveTab(section.id)}
+                    className={cn(
+                      'flex min-h-24 w-full flex-col items-start justify-between rounded-[1.35rem] border px-4 py-3 text-left transition-all',
+                      activeTab === section.id
+                        ? 'border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20'
+                        : 'border-primary/10 bg-card/80 text-foreground hover:border-primary/30 hover:bg-primary/7'
+                    )}
+                  >
+                    <div className="flex w-full items-center justify-between gap-2">
+                      <Icon className={cn('h-4 w-4', activeTab === section.id ? 'text-primary-foreground' : 'text-primary')} />
+                      {activeTab === section.id && (
+                        <span className="text-[10px] font-black uppercase tracking-[0.22em]">Ahora</span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">{section.label}</p>
+                      <p className={cn('mt-1 text-[11px]', activeTab === section.id ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
+                        {section.hint}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-[1.5rem] border border-primary/10 bg-background/45 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">
+              Operación Actual
+            </p>
+            <p className="mt-3 text-xl font-black text-foreground">{currentSection}</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Diseñado para trabajar en continuidad: entrada, cálculo, lectura visual e historial dentro de la misma estación.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="rounded-full border border-primary/15 bg-primary/8 px-3 py-1 text-[11px] font-semibold text-primary">
+                Navegación directa
+              </span>
+              <span className="rounded-full border border-primary/15 bg-card/90 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
+                Menos cambios de vista
+              </span>
+            </div>
           </div>
         </div>
       )}
-      
+
       {user && (
-        <div className="mt-4 flex items-center justify-between rounded-[1.2rem] border border-primary/10 bg-background/55 p-3">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-              <span className="text-sm font-semibold text-primary">
-                {user.email?.charAt(0).toUpperCase()}
-              </span>
+        <div className="border-t border-primary/10 px-4 py-4">
+          <div className="flex items-center justify-between rounded-[1.35rem] border border-primary/10 bg-background/55 p-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/15 bg-primary/18">
+                <span className="text-sm font-semibold text-primary">
+                  {user.email?.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">{user.email}</p>
+                <p className="text-[11px] text-muted-foreground">Sesión activa</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">{user.email}</p>
-            </div>
+            <button
+              onClick={onLogout}
+              className="rounded-xl px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            >
+              Cerrar sesión
+            </button>
           </div>
-          <button
-            onClick={onLogout}
-            className="rounded-lg px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-          >
-            Cerrar sesión
-          </button>
         </div>
       )}
     </nav>
