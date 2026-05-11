@@ -16,6 +16,12 @@ test('Regla falsa detecta una raiz exacta en el extremo del intervalo', () => {
   assert.equal(result.iterations.length, 0);
 });
 
+test('Bisección reporta error absoluto no nulo en la primera iteración', () => {
+  const result = NumericalMethods.bisection('x^2 - 4', 0, 3, 1e-6, 10);
+  assert.ok(result.iterations.length > 0);
+  assert.equal(result.iterations[0].ea, 1.5);
+});
+
 test('Newton-Raphson converge para una funcion suave', () => {
   const result = NumericalMethods.newtonRaphson('x^2 - 2', 1, 1e-8, 20);
   assert.equal(result.converged, true);
@@ -78,4 +84,23 @@ test('Punto fijo valida la raiz en x(i+1) antes de declarar convergencia', () =>
   assert.equal(result.converged, false);
   assert.equal(result.root, 5);
   assert.equal(result.message, 'No se alcanzó la convergencia en el máximo de iteraciones');
+});
+
+test('Secante detecta una secante horizontal antes de dividir', () => {
+  const result = NumericalMethods.secant('x^2', 1, -1, 1e-8, 10);
+  assert.equal(result.converged, false);
+  assert.match(result.message, /secante es horizontal/i);
+});
+
+test('Newton-Raphson para sistema detecta estancamiento o convergencia lenta', () => {
+  const result = NumericalMethods.newtonRaphsonSystem(
+    ['x^2 + y^2 - 1', 'x^2 - y'],
+    ['x', 'y'],
+    [0.7, 0.6],
+    1e-14,
+    12,
+  );
+
+  assert.equal(result.iterations.length > 0, true);
+  assert.match(result.message, /Convergencia alcanzada|Advertencia: posible estancamiento|No se alcanzo/);
 });

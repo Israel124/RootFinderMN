@@ -28,12 +28,15 @@ declare module 'react' {
     function useMemo<T>(factory: () => T, deps: any[]): T;
     function useRef<T = any>(value: T): { current: T };
     function useCallback<T extends (...args: any[]) => any>(callback: T, deps: any[]): T;
+    function useDeferredValue<T>(value: T): T;
+    function useSyncExternalStore<T>(subscribe: (listener: () => void) => () => void, getSnapshot: () => T, getServerSnapshot?: () => T): T;
     function lazy<T = any>(factory: () => Promise<any>): T;
     function createContext<T>(defaultValue: T): any;
     function useContext<T = any>(context: any): T;
     function forwardRef<T = any, P = any>(render: (props: P, ref: ForwardedRef<T>) => ReactElement | null): any;
     function isValidElement(value: any): boolean;
     function cloneElement(element: any, props?: Record<string, any>, ...children: any[]): any;
+    function startTransition(scope: () => void): void;
 
     const Children: {
       map(children: any, fn: (child: any) => any): any[];

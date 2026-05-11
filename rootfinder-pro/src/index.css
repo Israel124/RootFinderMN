@@ -1,6 +1,19 @@
 @import "tailwindcss";
 
 @theme {
+  --bg-base: #080c0a;
+  --bg-surface: #0f1512;
+  --bg-elevated: #161d1a;
+  --border: #1e2a25;
+  --primary: #10b981;
+  --primary-dim: #059669;
+  --text-primary: #f0fdf4;
+  --text-muted: #6b7a74;
+  --accent-amber: #f59e0b;
+  --accent-cyan: #06b6d4;
+  --accent-rose: #fb7185;
+  --destructive: #ef4444;
+
   --color-primary: #10b981;
   --color-primary-foreground: #050807;
   
@@ -69,10 +82,10 @@
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
     background-image: 
-      radial-gradient(circle at top left, rgba(34, 211, 238, 0.12) 0px, transparent 28rem),
-      radial-gradient(circle at top right, rgba(16, 185, 129, 0.12) 0px, transparent 24rem),
-      radial-gradient(circle at bottom center, rgba(245, 158, 11, 0.09) 0px, transparent 26rem),
-      linear-gradient(180deg, #07110f 0%, #040706 100%);
+      radial-gradient(circle at top left, rgba(6, 182, 212, 0.12) 0px, transparent 26rem),
+      radial-gradient(circle at top right, rgba(16, 185, 129, 0.14) 0px, transparent 22rem),
+      radial-gradient(circle at bottom center, rgba(245, 158, 11, 0.06) 0px, transparent 24rem),
+      linear-gradient(180deg, #080c0a 0%, #060907 100%);
     min-height: 100vh;
   }
 
@@ -99,6 +112,21 @@
   .font-mono {
     font-family: var(--font-mono);
   }
+}
+
+.app-surface {
+  background:
+    linear-gradient(180deg, rgba(15, 21, 18, 0.94) 0%, rgba(8, 12, 10, 0.98) 100%);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.app-skeleton {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.6s linear infinite;
 }
 
 #root {
@@ -189,5 +217,14 @@
   }
   to {
     background-position: 44px 44px;
+  }
+}
+
+@keyframes skeleton-sweep {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
   }
 }

@@ -28,7 +28,22 @@ export interface PolynomialRootResult {
   params: Record<string, any>;
 }
 
+type HornerSingleRootResult = {
+  root: number;
+  deflated: number[];
+  converged: boolean;
+  iterations: PolynomialIteration[];
+  graphMarkers: PolynomialGraphMarker[];
+  message: string;
+};
+
+/**
+ * Implementa métodos de raíces polinómicas y sus utilidades auxiliares.
+ */
 export class PolynomialMethods {
+  /**
+   * Parsea coeficientes separados por coma, punto y coma o espacios.
+   */
   static parseCoefficients(coefText: string): number[] {
     const tokens = coefText
       .replace(/\s+/g, ' ')
@@ -40,13 +55,13 @@ export class PolynomialMethods {
       if (Number.isNaN(value)) {
         throw new Error(`Coeficiente invalido: ${token}`);
       }
+
       return value;
     });
 
     if (coeffs.length < 2) {
       throw new Error('Ingresa al menos dos coeficientes (grado minimo 1).');
     }
-
     if (coeffs[0] === 0) {
       throw new Error('El coeficiente principal no puede ser cero.');
     }
@@ -54,6 +69,9 @@ export class PolynomialMethods {
     return coeffs;
   }
 
+  /**
+   * Formatea números complejos de forma compacta para la UI.
+   */
   static formatComplex(value: math.Complex): string {
     const re = Number(value.re.toFixed(8));
     const im = Number(value.im.toFixed(8));
@@ -63,26 +81,42 @@ export class PolynomialMethods {
     if (Math.abs(re) < 1e-10) {
       return `${im}i`;
     }
+
     return `${re} ${im >= 0 ? '+' : '-'} ${Math.abs(im)}i`;
   }
 
-  static isNearlyReal(value: math.Complex) {
+  /**
+   * Indica si un complejo puede tratarse como real.
+   */
+  static isNearlyReal(value: math.Complex): boolean {
     return Math.abs(value.im) < 1e-8;
   }
 
-  static toPowerAscending(coeffsDescending: number[]) {
+  /**
+   * Convierte coeficientes descendentes a orden ascendente por potencia.
+   */
+  static toPowerAscending(coeffsDescending: number[]): number[] {
     return coeffsDescending.slice().reverse();
   }
 
-  static toPowerLabel(index: number, degree: number) {
+  /**
+   * Devuelve la etiqueta textual del coeficiente según su potencia.
+   */
+  static toPowerLabel(index: number, degree: number): string {
     return `a${degree - index}`;
   }
 
-  static polynomialToExpression(coeffs: number[]) {
+  /**
+   * Convierte un polinomio a expresión legible.
+   */
+  static polynomialToExpression(coeffs: number[]): string {
     const degree = coeffs.length - 1;
     const terms = coeffs
       .map((coefficient, index) => {
-        if (Math.abs(coefficient) < 1e-12) return null;
+        if (Math.abs(coefficient) < 1e-12) {
+          return null;
+        }
+
         const power = degree - index;
         const abs = Math.abs(coefficient);
         const sign = coefficient < 0 ? '-' : '+';
@@ -92,42 +126,53 @@ export class PolynomialMethods {
       })
       .filter(Boolean) as string[];
 
-    if (terms.length === 0) return '0';
+    if (terms.length === 0) {
+      return '0';
+    }
 
     const [first, ...rest] = terms;
     return `${first.startsWith('+') ? first.slice(2) : first} ${rest.join(' ')}`.trim();
   }
 
+  /**
+   * Evalúa un polinomio real por Horner.
+   */
   static evaluatePolynomial(coeffs: number[], x: number): number {
     let result = coeffs[0];
-    for (let i = 1; i < coeffs.length; i += 1) {
-      result = result * x + coeffs[i];
+    for (let index = 1; index < coeffs.length; index += 1) {
+      result = result * x + coeffs[index];
     }
     return result;
   }
 
+  /**
+   * Evalúa un polinomio en un complejo.
+   */
   static evaluatePolynomialComplex(coeffs: number[], x: math.Complex): math.Complex {
     let result = math.complex(coeffs[0], 0);
-    for (let i = 1; i < coeffs.length; i += 1) {
-      result = math.add(math.multiply(result, x), coeffs[i]) as math.Complex;
+    for (let index = 1; index < coeffs.length; index += 1) {
+      result = math.add(math.multiply(result, x), coeffs[index]) as math.Complex;
     }
     return result;
   }
 
+  /**
+   * Construye los arreglos b y d del esquema de Horner-Newton.
+   */
   static buildHornerArrays(coeffs: number[], x: number) {
     const n = coeffs.length - 1;
     const b = new Array(coeffs.length).fill(0);
     const d = new Array(Math.max(coeffs.length - 1, 1)).fill(0);
 
     b[0] = coeffs[0];
-    for (let i = 1; i <= n; i += 1) {
-      b[i] = coeffs[i] + x * b[i - 1];
+    for (let index = 1; index <= n; index += 1) {
+      b[index] = coeffs[index] + x * b[index - 1];
     }
 
     if (n > 0) {
       d[0] = b[0];
-      for (let i = 1; i < n; i += 1) {
-        d[i] = b[i] + x * d[i - 1];
+      for (let index = 1; index < n; index += 1) {
+        d[index] = b[index] + x * d[index - 1];
       }
     }
 
@@ -139,136 +184,90 @@ export class PolynomialMethods {
     };
   }
 
-  static buildGraphSummary(
-    coeffs: number[],
-    roots: string[],
-    graphMarkers: PolynomialGraphMarker[],
-  ) {
-    const realRoots: number[] = [];
-    const hiddenComplexRoots: string[] = [];
+  /**
+   * Encuentra todas las raíces por Horner con deflación sucesiva.
+   */
+  static hornerRoot(coeffs: number[], x0: number, tol: number, maxIter: number): PolynomialRootResult {
+    return this.hornerAllRoots(coeffs, x0, tol, maxIter);
+  }
 
+  /**
+   * Encuentra todas las raíces por Horner-Newton, deflando tras cada raíz real.
+   */
+  static hornerAllRoots(coeffs: number[], x0: number, tol: number, maxIter: number): PolynomialRootResult {
+    const iterations: PolynomialIteration[] = [];
+    const graphMarkers: PolynomialGraphMarker[] = [];
+    const roots: string[] = [];
+    let remaining = coeffs.slice();
+    let seed = x0;
+    let converged = true;
+    let message = 'Convergencia alcanzada con Horner-Newton y deflación completa.';
+    const maxDeflations = coeffs.length + 2;
+    let deflationCount = 0;
+
+    while (remaining.length > 3) {
+      if (deflationCount >= maxDeflations) {
+        converged = false;
+        message = 'Se alcanzó el límite de deflaciones seguras en Horner.';
+        break;
+      }
+
+      const result = this.hornerOneRoot(remaining, seed, tol, maxIter, iterations.length);
+      iterations.push(...result.iterations);
+      graphMarkers.push(...result.graphMarkers);
+
+      if (!result.converged) {
+        converged = false;
+        message = result.message;
+        break;
+      }
+
+      roots.push(result.root.toFixed(10));
+      remaining = result.deflated;
+      seed = result.root;
+      deflationCount += 1;
+    }
+
+    if (converged) {
+      if (remaining.length === 3) {
+        const quadraticRoots = this.solveQuadraticEquation(remaining[0], remaining[1], remaining[2]);
+        roots.push(...quadraticRoots.map((root) => this.formatComplex(root)));
+      } else if (remaining.length === 2) {
+        roots.push(this.solveLinearEquation(remaining[0], remaining[1]).toFixed(10));
+      } else if (remaining.length === 1 && Math.abs(remaining[0]) > 1e-12) {
+        converged = false;
+        message = 'No fue posible deflar completamente el polinomio.';
+      }
+    }
+
+    const decoratedMarkers = [...graphMarkers];
     for (const root of roots) {
       const numeric = Number(root);
       if (!Number.isNaN(numeric) && Number.isFinite(numeric)) {
-        realRoots.push(numeric);
-        continue;
+        decoratedMarkers.push({
+          x: numeric,
+          y: 0,
+          label: 'raiz',
+          tone: 'root',
+        });
       }
-      hiddenComplexRoots.push(root);
     }
 
-    return {
-      realRoots,
-      hiddenComplexRoots,
-      polynomialExpression: this.polynomialToExpression(coeffs),
-      graphMarkers,
-    };
-  }
-
-  static hornerRoot(
-    coeffs: number[],
-    x0: number,
-    tol: number,
-    maxIter: number,
-  ): PolynomialRootResult {
-    const iterations: PolynomialIteration[] = [];
-    const graphMarkers: PolynomialGraphMarker[] = [];
-    let xi = x0;
-
-    graphMarkers.push({
-      x: x0,
-      y: this.evaluatePolynomial(coeffs, x0),
-      label: 'x0',
-      tone: 'seed',
-    });
-
-    for (let i = 1; i <= maxIter; i += 1) {
-      const { value, derivative, b, d } = this.buildHornerArrays(coeffs, xi);
-
-      if (Math.abs(derivative) < 1e-12) {
-        const graphSummary = this.buildGraphSummary(coeffs, [], graphMarkers);
-        return {
-          method: 'horner',
-          converged: false,
-          message: 'La derivada quedo demasiado cerca de cero durante Horner-Newton.',
-          roots: [],
-          iterations,
-          ...graphSummary,
-          params: { x0, tol, maxIter, coefficients: coeffs },
-        };
-      }
-
-      const xiNext = xi - value / derivative;
-      const error = Math.abs(xiNext - xi);
-
-      iterations.push({
-        iteration: i,
-        description: 'Esquema de Horner con actualizacion de Newton para polinomios.',
-        values: {
-          xk: xi.toFixed(10),
-          'P(xk)': value.toFixed(10),
-          "P'(xk)": derivative.toFixed(10),
-          'xk+1': xiNext.toFixed(10),
-          error: error.toExponential(4),
-          b: `[${b.map((item) => item.toFixed(6)).join(', ')}]`,
-          c: `[${d.slice(0, Math.max(d.length, 0)).map((item) => item.toFixed(6)).join(', ')}]`,
-        },
-      });
-
-      graphMarkers.push({
-        x: xiNext,
-        y: this.evaluatePolynomial(coeffs, xiNext),
-        label: `x${i}`,
-        tone: i === maxIter ? 'iteration' : 'iteration',
-      });
-
-      if (error < tol) {
-        const rootText = xiNext.toFixed(10);
-        const graphSummary = this.buildGraphSummary(coeffs, [rootText], [
-          ...graphMarkers,
-          {
-            x: xiNext,
-            y: 0,
-            label: 'raiz',
-            tone: 'root',
-          },
-        ]);
-
-        return {
-          method: 'horner',
-          converged: true,
-          message: 'Convergencia alcanzada con Horner-Newton.',
-          roots: [rootText],
-          iterations,
-          ...graphSummary,
-          params: { x0, tol, maxIter, coefficients: coeffs },
-        };
-      }
-
-      xi = xiNext;
-    }
-
-    const finalRoot = xi.toFixed(10);
-    const graphSummary = this.buildGraphSummary(coeffs, [finalRoot], [
-      ...graphMarkers,
-      {
-        x: xi,
-        y: 0,
-        label: 'raiz aprox',
-        tone: 'root',
-      },
-    ]);
-
+    const graphSummary = this.buildGraphSummary(coeffs, roots, decoratedMarkers);
     return {
       method: 'horner',
-      converged: false,
-      message: 'No se alcanzo convergencia con Horner-Newton en el maximo de iteraciones.',
-      roots: [finalRoot],
+      converged,
+      message,
+      roots,
       iterations,
       ...graphSummary,
       params: { x0, tol, maxIter, coefficients: coeffs },
     };
   }
 
+  /**
+   * Resuelve una raíz por Müller.
+   */
   static mullerRoot(
     coeffs: number[],
     x0: number,
@@ -288,11 +287,10 @@ export class PolynomialMethods {
     let z1 = math.complex(x1, 0);
     let z2 = math.complex(x2, 0);
 
-    for (let i = 1; i <= maxIter; i += 1) {
+    for (let iteration = 1; iteration <= maxIter; iteration += 1) {
       const f0 = this.evaluatePolynomialComplex(coeffs, z0);
       const f1 = this.evaluatePolynomialComplex(coeffs, z1);
       const f2 = this.evaluatePolynomialComplex(coeffs, z2);
-
       const h0 = math.subtract(z1, z0) as math.Complex;
       const h1 = math.subtract(z2, z1) as math.Complex;
       const delta0 = math.divide(math.subtract(f1, f0) as math.Complex, h0) as math.Complex;
@@ -324,7 +322,7 @@ export class PolynomialMethods {
       const error = math.abs(math.subtract(z3, z2) as math.Complex);
 
       iterations.push({
-        iteration: i,
+        iteration,
         description: 'Interpolacion cuadratica local con la formula clasica de Muller.',
         values: {
           x0: this.formatComplex(z0),
@@ -338,7 +336,7 @@ export class PolynomialMethods {
           b: this.formatComplex(b),
           c: this.formatComplex(c),
           D: this.formatComplex(discriminant),
-          'x3': this.formatComplex(z3),
+          x3: this.formatComplex(z3),
           error: error.toExponential(4),
         },
       });
@@ -347,7 +345,7 @@ export class PolynomialMethods {
         graphMarkers.push({
           x: z3.re,
           y: this.evaluatePolynomial(coeffs, z3.re),
-          label: `x${i + 2}`,
+          label: `x${iteration + 2}`,
           tone: 'iteration',
         });
       }
@@ -356,9 +354,7 @@ export class PolynomialMethods {
         const rootText = this.formatComplex(z3);
         const graphSummary = this.buildGraphSummary(coeffs, [rootText], [
           ...graphMarkers,
-          ...(this.isNearlyReal(z3)
-            ? [{ x: z3.re, y: 0, label: 'raiz', tone: 'root' as const }]
-            : []),
+          ...(this.isNearlyReal(z3) ? [{ x: z3.re, y: 0, label: 'raiz', tone: 'root' as const }] : []),
         ]);
 
         return {
@@ -380,9 +376,7 @@ export class PolynomialMethods {
     const finalRoot = this.formatComplex(z2);
     const graphSummary = this.buildGraphSummary(coeffs, [finalRoot], [
       ...graphMarkers,
-      ...(this.isNearlyReal(z2)
-        ? [{ x: z2.re, y: 0, label: 'raiz aprox', tone: 'root' as const }]
-        : []),
+      ...(this.isNearlyReal(z2) ? [{ x: z2.re, y: 0, label: 'raiz aprox', tone: 'root' as const }] : []),
     ]);
 
     return {
@@ -396,43 +390,58 @@ export class PolynomialMethods {
     };
   }
 
+  /**
+   * Resuelve una ecuación cuadrática permitiendo raíces complejas.
+   */
   static solveQuadraticEquation(a: number, b: number, c: number): math.Complex[] {
     const discriminant = math.complex(b * b - 4 * a * c, 0);
-    const sqrtDisc = math.sqrt(discriminant) as math.Complex;
+    const sqrtDiscriminant = math.sqrt(discriminant) as math.Complex;
     const twoA = 2 * a;
     return [
-      math.divide(math.subtract(math.complex(-b, 0), sqrtDisc) as math.Complex, twoA) as math.Complex,
-      math.divide(math.add(math.complex(-b, 0), sqrtDisc) as math.Complex, twoA) as math.Complex,
+      math.divide(math.subtract(math.complex(-b, 0), sqrtDiscriminant) as math.Complex, twoA) as math.Complex,
+      math.divide(math.add(math.complex(-b, 0), sqrtDiscriminant) as math.Complex, twoA) as math.Complex,
     ];
   }
 
+  /**
+   * Resuelve una ecuación lineal `ax + b = 0`.
+   */
   static solveLinearEquation(a: number, b: number): number {
     return -b / a;
   }
 
+  /**
+   * Ejecuta un paso de Bairstow en coeficientes ascendentes.
+   */
   static bairstowStep(aAsc: number[], r: number, s: number) {
-    const n = aAsc.length - 1;
-    const b = new Array(n + 1).fill(0);
-    const c = new Array(n + 1).fill(0);
+    const degree = aAsc.length - 1;
+    const b = new Array(degree + 1).fill(0);
+    const c = new Array(degree + 1).fill(0);
 
-    b[n] = aAsc[n];
-    b[n - 1] = aAsc[n - 1] + r * b[n];
+    b[degree] = aAsc[degree];
+    b[degree - 1] = aAsc[degree - 1] + r * b[degree];
 
-    for (let i = n - 2; i >= 0; i -= 1) {
-      b[i] = aAsc[i] + r * b[i + 1] + s * b[i + 2];
+    for (let index = degree - 2; index >= 0; index -= 1) {
+      b[index] = aAsc[index] + r * b[index + 1] + s * b[index + 2];
     }
 
-    c[n] = b[n];
-    c[n - 1] = b[n - 1] + r * c[n];
+    c[degree] = b[degree];
+    c[degree - 1] = b[degree - 1] + r * c[degree];
 
-    for (let i = n - 2; i >= 0; i -= 1) {
-      c[i] = b[i] + r * c[i + 1] + s * c[i + 2];
+    for (let index = degree - 2; index >= 0; index -= 1) {
+      c[index] = b[index] + r * c[index + 1] + s * c[index + 2];
     }
 
-    const denominator = c[2] * c[2] - c[3] * c[1];
-    return { b, c, denominator };
+    return {
+      b,
+      c,
+      denominator: c[2] * c[2] - c[3] * c[1],
+    };
   }
 
+  /**
+   * Estima valores iniciales razonables para Bairstow.
+   */
   static estimateBairstowInitialValues(coeffs: number[]) {
     if (coeffs.length < 3) {
       return { r0: 0, s0: 0 };
@@ -454,7 +463,10 @@ export class PolynomialMethods {
     ];
 
     for (const candidate of candidates) {
-      if (!Number.isFinite(candidate.r0) || !Number.isFinite(candidate.s0)) continue;
+      if (!Number.isFinite(candidate.r0) || !Number.isFinite(candidate.s0)) {
+        continue;
+      }
+
       const { denominator } = this.bairstowStep(this.toPowerAscending(coeffs), candidate.r0, candidate.s0);
       if (Number.isFinite(denominator) && Math.abs(denominator) > 1e-12) {
         return candidate;
@@ -464,6 +476,9 @@ export class PolynomialMethods {
     return { r0: 0, s0: -1 };
   }
 
+  /**
+   * Factoriza completamente un polinomio por Bairstow.
+   */
   static bairstowFullRoots(
     coeffs: number[],
     r0: number = PolynomialMethods.estimateBairstowInitialValues(coeffs).r0,
@@ -476,9 +491,24 @@ export class PolynomialMethods {
     let aAsc = this.toPowerAscending(coeffs);
     let r = r0;
     let s = s0;
+    let deflationCount = 0;
+    const maxDeflations = Math.max(coeffs.length * 2, 4);
 
     while (aAsc.length > 3) {
-      const n = aAsc.length - 1;
+      if (deflationCount >= maxDeflations) {
+        const graphSummary = this.buildGraphSummary(coeffs, roots, []);
+        return {
+          method: 'bairstow',
+          converged: false,
+          message: 'Bairstow alcanzó el límite seguro de deflación antes de terminar.',
+          roots,
+          iterations,
+          ...graphSummary,
+          params: { r0, s0, tol, maxIter, coefficients: coeffs },
+        };
+      }
+
+      const degree = aAsc.length - 1;
       let converged = false;
       let lastB: number[] = [];
 
@@ -495,7 +525,7 @@ export class PolynomialMethods {
 
         iterations.push({
           iteration: iterations.length + 1,
-          description: `Ajuste de Bairstow sobre el factor x^2 + r*x + s para grado ${n}.`,
+          description: `Ajuste de Bairstow sobre el factor x^2 + r*x + s para grado ${degree}.`,
           values: {
             r: r.toFixed(10),
             s: s.toFixed(10),
@@ -533,12 +563,12 @@ export class PolynomialMethods {
       const extractedRoots = this.solveQuadraticEquation(1, r, s);
       roots.push(...extractedRoots.map((root) => this.formatComplex(root)));
       aAsc = lastB.slice(2);
+      deflationCount += 1;
     }
 
     if (aAsc.length === 3) {
       const [a0, a1, a2] = aAsc;
-      const quadraticRoots = this.solveQuadraticEquation(a2, a1, a0);
-      roots.push(...quadraticRoots.map((root) => this.formatComplex(root)));
+      roots.push(...this.solveQuadraticEquation(a2, a1, a0).map((root) => this.formatComplex(root)));
     } else if (aAsc.length === 2) {
       const [a0, a1] = aAsc;
       roots.push(this.solveLinearEquation(a1, a0).toFixed(10));
@@ -558,7 +588,6 @@ export class PolynomialMethods {
     }
 
     const graphSummary = this.buildGraphSummary(coeffs, roots, graphMarkers);
-
     return {
       method: 'bairstow',
       converged: true,
@@ -567,6 +596,110 @@ export class PolynomialMethods {
       iterations,
       ...graphSummary,
       params: { r0, s0, tol, maxIter, coefficients: coeffs },
+    };
+  }
+
+  private static hornerOneRoot(
+    coeffs: number[],
+    x0: number,
+    tol: number,
+    maxIter: number,
+    iterationOffset: number,
+  ): HornerSingleRootResult {
+    const iterations: PolynomialIteration[] = [];
+    const graphMarkers: PolynomialGraphMarker[] = [
+      {
+        x: x0,
+        y: this.evaluatePolynomial(coeffs, x0),
+        label: `x${iterationOffset}`,
+        tone: 'seed',
+      },
+    ];
+    let xi = x0;
+
+    for (let iteration = 1; iteration <= maxIter; iteration += 1) {
+      const { value, derivative, b, d } = this.buildHornerArrays(coeffs, xi);
+      if (Math.abs(derivative) < 1e-12) {
+        return {
+          root: xi,
+          deflated: coeffs.slice(),
+          converged: false,
+          iterations,
+          graphMarkers,
+          message: 'La derivada quedo demasiado cerca de cero durante Horner-Newton.',
+        };
+      }
+
+      const xiNext = xi - value / derivative;
+      const error = Math.abs(xiNext - xi);
+      iterations.push({
+        iteration: iterationOffset + iteration,
+        description: 'Esquema de Horner con actualizacion de Newton para polinomios.',
+        values: {
+          xk: xi.toFixed(10),
+          'P(xk)': value.toFixed(10),
+          "P'(xk)": derivative.toFixed(10),
+          'xk+1': xiNext.toFixed(10),
+          error: error.toExponential(4),
+          b: `[${b.map((item) => item.toFixed(6)).join(', ')}]`,
+          c: `[${d.map((item) => item.toFixed(6)).join(', ')}]`,
+        },
+      });
+
+      graphMarkers.push({
+        x: xiNext,
+        y: this.evaluatePolynomial(coeffs, xiNext),
+        label: `x${iterationOffset + iteration}`,
+        tone: 'iteration',
+      });
+
+      if (error < tol || Math.abs(this.evaluatePolynomial(coeffs, xiNext)) < tol) {
+        const deflated = b.slice(0, -1);
+        return {
+          root: xiNext,
+          deflated,
+          converged: true,
+          iterations,
+          graphMarkers,
+          message: 'Convergencia alcanzada con Horner-Newton.',
+        };
+      }
+
+      xi = xiNext;
+    }
+
+    return {
+      root: xi,
+      deflated: coeffs.slice(),
+      converged: false,
+      iterations,
+      graphMarkers,
+      message: 'No se alcanzo convergencia con Horner-Newton en el maximo de iteraciones.',
+    };
+  }
+
+  private static buildGraphSummary(
+    coeffs: number[],
+    roots: string[],
+    graphMarkers: PolynomialGraphMarker[],
+  ) {
+    const realRoots: number[] = [];
+    const hiddenComplexRoots: string[] = [];
+
+    for (const root of roots) {
+      const numeric = Number(root);
+      if (!Number.isNaN(numeric) && Number.isFinite(numeric)) {
+        realRoots.push(numeric);
+      } else {
+        hiddenComplexRoots.push(root);
+      }
+    }
+
+    return {
+      realRoots,
+      hiddenComplexRoots,
+      polynomialExpression: this.polynomialToExpression(coeffs),
+      graphMarkers,
     };
   }
 }

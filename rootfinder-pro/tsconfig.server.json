@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "strict": true
   },
-  "include": ["server.ts", "server-api.ts", "server-storage.ts"]
+  "include": ["server.ts", "server-api.ts", "server-utils.ts", "server/**/*.ts"]
 }

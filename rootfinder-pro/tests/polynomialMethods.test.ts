@@ -5,8 +5,10 @@ import { PolynomialMethods } from '../src/lib/polynomialMethods';
 test('Horner encuentra la raiz real de x^2 - 4 correctamente', () => {
   const result = PolynomialMethods.hornerRoot([1, 0, -4], 1, 1e-8, 20);
   assert.equal(result.converged, true);
-  assert.ok(result.roots[0] !== undefined);
-  assert.ok(Math.abs(parseFloat(result.roots[0]) - 2) < 1e-6);
+  assert.equal(result.roots.length, 2);
+  const roots = result.roots.map((root) => parseFloat(root)).sort((a, b) => a - b);
+  assert.ok(Math.abs(roots[0] + 2) < 1e-6);
+  assert.ok(Math.abs(roots[1] - 2) < 1e-6);
 });
 
 test('Müller converge hacia una raiz real de x^2 - 4', () => {
@@ -50,6 +52,9 @@ test('Bairstow calcula valores iniciales automaticos usables', () => {
 test('Horner-Newton aproxima una raiz de x^3 + 3x^2 - x - 3', () => {
   const result = PolynomialMethods.hornerRoot([1, 3, -1, -3], 0.8, 1e-8, 30);
   assert.equal(result.converged, true);
-  const root = parseFloat(result.roots[0]);
-  assert.ok(Math.abs(root - 1) < 1e-5);
+  const roots = result.roots.map((root) => parseFloat(root)).sort((a, b) => a - b);
+  assert.equal(roots.length, 3);
+  assert.ok(Math.abs(roots[0] + 3) < 1e-5);
+  assert.ok(Math.abs(roots[1] + 1) < 1e-5);
+  assert.ok(Math.abs(roots[2] - 1) < 1e-5);
 });

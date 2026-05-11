@@ -106,3 +106,8 @@ test('MathEvaluator mantiene precision numerica en expresiones compuestas', () =
   const nearZero = MathEvaluator.evaluateWithScope('sin(x) / x', { x: 1e-8 });
   assertApproximately(nearZero, 1, 1e-15);
 });
+
+test('MathEvaluator usa derivada numérica adaptativa cerca de cero', () => {
+  const derivative = MathEvaluator.partialDerivative('x^2', 'x', { x: 1e-9 });
+  assertApproximately(derivative, 2e-9, 1e-9);
+});
