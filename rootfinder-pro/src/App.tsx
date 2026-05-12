@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Toaster } from '@/components/ui/sonner';
 import { AuthScreen } from '@/components/auth/AuthScreen';
 import { AppShell } from '@/components/layout/AppShell';
@@ -62,8 +63,24 @@ function AuthenticatedWorkspace({ user, logout }: { user: AuthUser; logout: () =
  */
 export default function App() {
   const { user, isAuthenticated, isBootstrapping, logout } = useAuth();
+  const [bootstrapExpired, setBootstrapExpired] = useState(false);
 
-  if (isBootstrapping) {
+  useEffect(() => {
+    if (!isBootstrapping) {
+      setBootstrapExpired(false);
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setBootstrapExpired(true);
+    }, 8000);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [isBootstrapping]);
+
+  if (isBootstrapping && !bootstrapExpired) {
     return <ModuleLoader />;
   }
 
