@@ -162,7 +162,7 @@ export function AuthScreen() {
           </p>
           <div>
             <h1 className="max-w-3xl text-4xl font-extrabold leading-none lg:text-5xl">
-              Ingeniería numérica con una base más limpia.
+              Donde la evolución de los métodos numéricos se convierte en una sola plataforma de innovación real.
             </h1>
             <p className="mt-4 max-w-xl text-sm leading-6 text-[var(--text-muted)] lg:text-base">
               Metodos numéricos para encontrar raíces de funciones, con historial remoto, verificación de correo y una arquitectura lista para crecer con nuevos módulos matemáticos.
