@@ -49,7 +49,7 @@ export function AppShell({
           onLogout={onLogout}
           counts={counts}
         />
-        <main className="flex-1">
+        <main className="min-h-[calc(100vh-56px)] flex-1 overflow-x-hidden overflow-y-auto">
           <div className="mx-auto max-w-[1200px] px-4 py-6 lg:px-6">
             {children}
           </div>

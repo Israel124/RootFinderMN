@@ -168,6 +168,10 @@ export function AuthScreen() {
               La sesión ahora vive con `accessToken` en memoria, refresh seguro por cookie y validación
               alineada con el backend refactorizado.
             </p>
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--text-muted)]">
+              Desarrollado por Israel Espinoza, Luis Pérez y Randall Argüello para la Universidad Nacional de
+              Ingeniería, UNI Managua.
+            </p>
           </div>
 
           <div className="overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[var(--bg-surface)] shadow-2xl">

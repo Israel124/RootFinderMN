@@ -4,6 +4,7 @@ import type { AppTab, AuthUser } from '@/types';
 
 interface NavigationItem {
   id: AppTab;
+  order?: number;
   label: string;
   icon: typeof Sigma;
   count?: number;
@@ -20,10 +21,10 @@ interface SidebarProps {
 }
 
 const navigationItems: NavigationItem[] = [
-  { id: 'taylor', label: 'Taylor', icon: FunctionSquare },
-  { id: 'methods', label: 'Resolución', icon: Calculator },
-  { id: 'polynomial', label: 'Polinomios', icon: Sigma },
-  { id: 'systems', label: 'Sistemas', icon: Orbit },
+  { id: 'taylor', order: 1, label: 'Taylor', icon: FunctionSquare },
+  { id: 'methods', order: 2, label: 'Resolución', icon: Calculator },
+  { id: 'polynomial', order: 3, label: 'Polinomios', icon: Sigma },
+  { id: 'systems', order: 4, label: 'Sistemas', icon: Orbit },
 ];
 
 const resolutionItems: NavigationItem[] = [
@@ -53,7 +54,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        'flex h-full w-full max-w-60 flex-col border-r border-[var(--border)] bg-[color:rgba(15,21,18,0.96)] px-3 py-4 backdrop-blur-xl',
+        'sticky top-14 flex h-[calc(100vh-56px)] w-full max-w-60 flex-col border-r border-[var(--border)] bg-[color:rgba(15,21,18,0.96)] px-3 py-4 backdrop-blur-xl',
         collapsed && 'hidden lg:flex',
         className,
       )}
@@ -94,7 +95,10 @@ export function Sidebar({
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--bg-elevated)]">
                   <Icon className="h-4 w-4" />
                 </span>
-                <span className="text-sm font-medium">{item.label}</span>
+                <span className="flex items-center gap-2">
+                  {item.order ? <span className="text-xs font-semibold text-[var(--text-muted)]">{item.order}.</span> : null}
+                  <span className="text-sm font-medium">{item.label}</span>
+                </span>
               </span>
               <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[11px]">
                 {count ?? 0}
