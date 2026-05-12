@@ -1,5 +1,6 @@
-import { Menu, Sigma } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import { cn } from '@/lib/utils';
 import type { AuthUser } from '@/types';
 
@@ -41,12 +42,10 @@ export function TopBar({
           <Menu className="h-4 w-4" />
         </Button>
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--primary)] text-[var(--bg-base)]">
-            <Sigma className="h-4 w-4" />
-          </div>
+          <BrandLogo size="sm" />
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
-              RootFinder Pro
+              RootFinder
             </p>
             <p className="text-sm font-semibold text-[var(--text-primary)]">{activeModuleLabel}</p>
           </div>

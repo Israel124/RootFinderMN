@@ -232,21 +232,21 @@ function MullerFirstIterationView({ detail }: { detail: MullerFirstIterationDeta
       </div>
       <div className="mt-5 grid gap-3">
         <div className="rounded-2xl border border-primary/10 bg-background/70 p-4 font-mono text-sm text-foreground">
-          Valores iniciales: [{detail.x0}, {detail.x1}, {detail.x2}]
+          Valores iniciales: [x₀, x₁, x₂] = [{detail.x0}, {detail.x1}, {detail.x2}]
         </div>
         <div className="rounded-2xl border border-primary/10 bg-background/70 p-4 font-mono text-sm leading-7 text-foreground">
-          <p>h0 = x1 - x0 = {detail.x1} - {detail.x0} = <span className="font-semibold text-primary">{detail.h0}</span></p>
-          <p>h1 = x2 - x1 = {detail.x2} - {detail.x1} = <span className="font-semibold text-primary">{detail.h1}</span></p>
-          <p>delta0 = (f(x1) - f(x0)) / h0 = ({detail.f1} - {detail.f0}) / {detail.h0} = <span className="font-semibold text-primary">{detail.delta0}</span></p>
-          <p>delta1 = (f(x2) - f(x1)) / h1 = ({detail.f2} - {detail.f1}) / {detail.h1} = <span className="font-semibold text-primary">{detail.delta1}</span></p>
-          <p>a = (delta1 - delta0) / (h1 + h0) = <span className="font-semibold text-primary">{detail.a}</span></p>
-          <p>b = a*h1 + delta1 = <span className="font-semibold text-primary">{detail.b}</span></p>
-          <p>c = f(x2) = <span className="font-semibold text-primary">{detail.c}</span></p>
-          <p>Discriminante = b^2 - 4ac = <span className="font-semibold text-primary">{detail.discriminant}</span></p>
-          <p>sqrt(discriminante) = <span className="font-semibold text-primary">{detail.sqrtDiscriminant}</span></p>
-          <p>Denominador elegido: b {detail.denominatorBranch} sqrt(discriminante) = <span className="font-semibold text-primary">{detail.denominator}</span></p>
-          <p>x3 = x2 - 2c / denominador = <span className="font-semibold text-primary">{detail.x3}</span></p>
-          <p>Error = |x3 - x2| = <span className="font-semibold text-primary">{detail.error}</span></p>
+          <p>h₀ = x₁ - x₀ = {detail.x1} - {detail.x0} = <span className="font-semibold text-primary">{detail.h0}</span></p>
+          <p>h₁ = x₂ - x₁ = {detail.x2} - {detail.x1} = <span className="font-semibold text-primary">{detail.h1}</span></p>
+          <p>δ₀ = (f(x₁) - f(x₀)) / h₀ = ({detail.f1} - {detail.f0}) / {detail.h0} = <span className="font-semibold text-primary">{detail.delta0}</span></p>
+          <p>δ₁ = (f(x₂) - f(x₁)) / h₁ = ({detail.f2} - {detail.f1}) / {detail.h1} = <span className="font-semibold text-primary">{detail.delta1}</span></p>
+          <p>a = (δ₁ - δ₀) / (h₁ + h₀) = <span className="font-semibold text-primary">{detail.a}</span></p>
+          <p>b = a·h₁ + δ₁ = <span className="font-semibold text-primary">{detail.b}</span></p>
+          <p>c = f(x₂) = <span className="font-semibold text-primary">{detail.c}</span></p>
+          <p>Discriminante = b² - 4ac = <span className="font-semibold text-primary">{detail.discriminant}</span></p>
+          <p>√(discriminante) = <span className="font-semibold text-primary">{detail.sqrtDiscriminant}</span></p>
+          <p>Denominador elegido: b {detail.denominatorBranch} √(discriminante) = <span className="font-semibold text-primary">{detail.denominator}</span></p>
+          <p>x₃ = x₂ - 2c / denominador = <span className="font-semibold text-primary">{detail.x3}</span></p>
+          <p>Error = |x₃ - x₂| = <span className="font-semibold text-primary">{detail.error}</span></p>
         </div>
       </div>
     </div>
@@ -258,6 +258,21 @@ function MullerIterationsTable({ iterations }: { iterations: PolynomialRootResul
 
   const orderedColumns = ['x0', 'x1', 'x2', 'h0', 'h1', 'delta0', 'delta1', 'a', 'b', 'c', 'D', 'x3', 'error'];
   const visibleColumns = orderedColumns.filter((column) => column in iterations[0].values);
+  const columnLabels: Record<string, string> = {
+    x0: 'x₀',
+    x1: 'x₁',
+    x2: 'x₂',
+    h0: 'h₀',
+    h1: 'h₁',
+    delta0: 'δ₀',
+    delta1: 'δ₁',
+    a: 'a',
+    b: 'b',
+    c: 'c',
+    D: '√Δ',
+    x3: 'x₃',
+    error: 'Error',
+  };
 
   return (
     <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
@@ -280,7 +295,7 @@ function MullerIterationsTable({ iterations }: { iterations: PolynomialRootResul
                 <TableHead className="min-w-[240px] uppercase text-[10px] font-bold tracking-widest text-primary/70">Descripcion</TableHead>
                 {visibleColumns.map((column) => (
                   <TableHead key={column} className="min-w-[118px] uppercase text-[10px] font-bold tracking-widest text-primary/70">
-                    {column}
+                    {columnLabels[column] ?? column}
                   </TableHead>
                 ))}
               </TableRow>

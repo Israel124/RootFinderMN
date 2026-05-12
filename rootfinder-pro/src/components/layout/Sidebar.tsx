@@ -143,7 +143,7 @@ export function Sidebar({
         <p className="truncate text-sm font-medium text-[var(--text-primary)]">
           {user?.username || user?.email || 'Sin sesión'}
         </p>
-        <p className="mt-1 text-[11px] text-[var(--text-muted)]">Panel universitario</p>
+        <p className="mt-1 text-[11px] text-[var(--text-muted)]">Panel de trabajo</p>
         {onLogout ? (
           <button
             type="button"

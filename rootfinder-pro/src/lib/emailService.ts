@@ -36,9 +36,9 @@ export async function sendVerificationEmail(email: string, verificationCode: str
   }
 
   const data = {
-    sender: { name: "RootFinder Pro", email: senderEmail },
+    sender: { name: "RootFinder", email: senderEmail },
     to: [{ email }],
-    subject: "Verifica tu cuenta - RootFinder Pro",
+    subject: "Verifica tu cuenta - RootFinder",
     htmlContent: `
       <!DOCTYPE html>
       <html lang="es">
@@ -107,7 +107,7 @@ export async function sendVerificationEmail(email: string, verificationCode: str
       <body>
         <div class="container">
           <div class="header">
-            <h1>🚀 RootFinder Pro</h1>
+            <h1>RootFinder</h1>
             <p>Verificación de cuenta</p>
           </div>
           <div class="content">
@@ -122,7 +122,7 @@ export async function sendVerificationEmail(email: string, verificationCode: str
           </div>
           <div class="footer">
             <p>Si no solicitaste esta verificación, ignora este mensaje.</p>
-            <p>&copy; 2026 RootFinder Pro - UNI</p>
+            <p>&copy; 2026 RootFinder</p>
           </div>
         </div>
       </body>
