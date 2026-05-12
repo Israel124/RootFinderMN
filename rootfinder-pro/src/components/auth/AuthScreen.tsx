@@ -16,6 +16,9 @@ interface VerificationPayload {
   fallbackCode?: string | null;
 }
 
+const UNI_BUILDING_IMAGE =
+  'https://posgrado.uni.edu.ni/wp-content/uploads/2020/02/EDIFICIO-UNI-1920x620.jpg';
+
 /**
  * Pantalla de acceso integrada con el store de autenticación y verificación por correo.
  */
@@ -88,11 +91,17 @@ export function AuthScreen() {
           message: payload.error,
           fallbackCode: payload.verificationCode ?? null,
         });
-        toast.error(payload.error);
-        return;
-      }
+      toast.error(payload.error);
+      return;
+    }
 
-      toast.error(error instanceof Error ? error.message : 'No se pudo iniciar sesión');
+      toast.error(
+        error instanceof ApiClientError && error.details
+          ? `${error.message}: ${error.details}`
+          : error instanceof Error
+          ? error.message
+          : 'No se pudo iniciar sesión',
+      );
     }
   };
 
@@ -114,7 +123,13 @@ export function AuthScreen() {
       });
       toast.success('Cuenta creada');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'No se pudo crear la cuenta');
+      toast.error(
+        error instanceof ApiClientError && error.details
+          ? `${error.message}: ${error.details}`
+          : error instanceof Error
+          ? error.message
+          : 'No se pudo crear la cuenta',
+      );
     }
   };
 
@@ -128,7 +143,13 @@ export function AuthScreen() {
       await verifyEmail({ email: verification.email, code: normalizedVerificationCode });
       toast.success('Cuenta verificada');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'No se pudo verificar la cuenta');
+      toast.error(
+        error instanceof ApiClientError && error.details
+          ? `${error.message}: ${error.details}`
+          : error instanceof Error
+          ? error.message
+          : 'No se pudo verificar la cuenta',
+      );
     }
   };
 
@@ -136,17 +157,36 @@ export function AuthScreen() {
     <div className="min-h-screen bg-[var(--bg-base)] px-4 py-8 text-[var(--text-primary)]">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="space-y-6">
-          <p className="inline-flex rounded-full border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-            RootFinder Pro
+          <p className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300">
+            Alianza Académica
           </p>
           <div>
             <h1 className="max-w-3xl text-5xl font-extrabold leading-none">
-              Ingeniería numérica con una base más limpia.
+              Desarrollado en UNI Nicaragua
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-[var(--text-muted)]">
-              La sesión ahora vive con `accessToken` en memoria, refresh seguro por cookie y validación
-              alineada con el backend refactorizado.
+              Herramienta educativa para laboratorio de métodos numéricos con una arquitectura más limpia,
+              sesión segura y módulos matemáticos listos para trabajo universitario real.
             </p>
+          </div>
+
+          <div className="overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[var(--bg-surface)] shadow-2xl">
+            <div
+              className="relative min-h-[420px] bg-cover bg-center"
+              style={{ backgroundImage: `linear-gradient(180deg, rgba(8,12,10,0.08) 0%, rgba(8,12,10,0.45) 58%, rgba(8,12,10,0.92) 100%), url('${UNI_BUILDING_IMAGE}')` }}
+            >
+              <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[#0b1536]/80 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
+                <div className="flex flex-wrap gap-3">
+                  <span className="inline-flex rounded-full bg-white/12 px-4 py-2 text-sm font-semibold text-white backdrop-blur">
+                    Sede Central, Managua
+                  </span>
+                  <span className="inline-flex rounded-full bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-200 backdrop-blur">
+                    RootFinder Pro
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
