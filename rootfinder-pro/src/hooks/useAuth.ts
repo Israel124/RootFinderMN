@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient, ApiClientError, setUnauthorizedHandler } from '@/lib/apiClient';
 import {
   clearAuthSession,
@@ -52,6 +52,8 @@ function toMessage(error: unknown): string {
   return 'Ocurrió un error inesperado';
 }
 
+let hasBootstrappedAuth = false;
+
 /**
  * Hook de autenticación con refresh automático y estado centralizado en memoria.
  */
@@ -62,7 +64,6 @@ export function useAuth(): AuthActionState {
   const error = useAuthStore((state) => state.error);
   const pendingVerificationEmail = useAuthStore((state) => state.pendingVerificationEmail);
   const [isLoading, setIsLoading] = useState(false);
-  const isBootstrappedRef = useRef(false);
 
   const applyAuthResponse = useCallback((response: AuthSuccessResponse) => {
     setAuthSession(response.user, response.accessToken);
@@ -104,11 +105,11 @@ export function useAuth(): AuthActionState {
   }, [refreshSession]);
 
   useEffect(() => {
-    if (isBootstrappedRef.current) {
+    if (hasBootstrappedAuth) {
       return;
     }
 
-    isBootstrappedRef.current = true;
+    hasBootstrappedAuth = true;
     void checkSession();
   }, [checkSession]);
 
