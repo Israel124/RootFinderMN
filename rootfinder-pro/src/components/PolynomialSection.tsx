@@ -125,6 +125,10 @@ function formatHornerNumber(value: number | null | undefined): string {
   return rounded.toString();
 }
 
+function padHornerCell(value: string, width: number = 12): string {
+  return value.padStart(width, ' ');
+}
+
 function HornerDivisionView({ division, index }: { division: HornerSyntheticDivision; index: number }) {
   const columns = division.coefficients.map((coefficient, coefficientIndex) => ({
     key: `${division.evaluationPoint}-${coefficientIndex}`,
@@ -133,75 +137,86 @@ function HornerDivisionView({ division, index }: { division: HornerSyntheticDivi
     product: division.products[coefficientIndex],
     result: division.results[coefficientIndex],
   }));
+  const coefficientRow = columns.map((column) => padHornerCell(formatHornerNumber(column.coefficient))).join('   ');
+  const productRow = columns
+    .map((column, columnIndex) => padHornerCell(columnIndex === 0 ? '' : formatHornerNumber(column.product)))
+    .join('   ');
+  const resultRow = columns.map((column) => padHornerCell(formatHornerNumber(column.result))).join('   ');
+  const lineWidth = Math.max(coefficientRow.length, productRow.length, resultRow.length);
 
   return (
-    <div className="rounded-[1.5rem] border border-primary/10 bg-background/45 p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/70">
-            Division sintetica {index + 1}
-          </p>
-          <p className="mt-2 font-mono text-sm text-muted-foreground break-words [overflow-wrap:anywhere]">
-            Evaluando P({formatHornerNumber(division.evaluationPoint)}) donde P(x) = {division.polynomialExpression}
-          </p>
-        </div>
-        <Badge variant="outline" className="font-mono">
-          x = {formatHornerNumber(division.evaluationPoint)}
-        </Badge>
+    <div className="rounded-[1.5rem] border border-primary/10 bg-background/45 p-5 lg:p-7">
+      <div className="space-y-3 text-center">
+        <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/70">
+          Division sintetica {index + 1}
+        </p>
+        <p className="font-mono text-lg font-semibold text-foreground">
+          Evaluando P({formatHornerNumber(division.evaluationPoint)}) donde:
+        </p>
+        <p className="font-mono text-base text-foreground break-words [overflow-wrap:anywhere]">
+          P(x) = {division.polynomialExpression}
+        </p>
       </div>
 
-      <div className="mt-5 overflow-x-auto">
-        <div
-          className="grid min-w-[620px] gap-y-2 font-mono text-sm"
-          style={{ gridTemplateColumns: `140px repeat(${columns.length}, minmax(90px, 1fr))` }}
-        >
-          <div className="py-2 text-xs font-bold uppercase tracking-[0.2em] text-primary/70">Paso</div>
-          {columns.map((column) => (
-            <div key={`head-${column.key}`} className="py-2 text-center text-xs font-bold uppercase tracking-[0.2em] text-primary/70">
-              x^{column.power}
-            </div>
-          ))}
-
-          <div className="border-t border-primary/15 py-3 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-            Coeficientes
-          </div>
-          {columns.map((column) => (
-            <div key={`coef-${column.key}`} className="border-t border-primary/15 py-3 text-center">
-              {formatHornerNumber(column.coefficient)}
-            </div>
-          ))}
-
-          <div className="border-t border-primary/15 py-3 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-            Multiplicar por {formatHornerNumber(division.evaluationPoint)}
-          </div>
-          {columns.map((column, columnIndex) => (
-            <div key={`prod-${column.key}`} className="border-t border-primary/15 py-3 text-center">
-              {columnIndex === 0 ? '' : formatHornerNumber(column.product)}
-            </div>
-          ))}
-
-          <div className="border-t border-primary/25 py-3 text-xs font-bold uppercase tracking-[0.16em] text-primary">
-            Resultados (b)
-          </div>
-          {columns.map((column) => (
-            <div key={`result-${column.key}`} className="border-t border-primary/25 py-3 text-center font-semibold">
-              {formatHornerNumber(column.result)}
-            </div>
-          ))}
+      <div className="mt-6 rounded-[1.25rem] border border-primary/10 bg-[#191c24] px-4 py-5 text-foreground">
+        <p className="font-mono text-lg font-semibold">Division sintetica (x = {formatHornerNumber(division.evaluationPoint)}):</p>
+        <div className="mt-4 overflow-x-auto">
+          <pre className="min-w-[720px] whitespace-pre font-mono text-[1.05rem] leading-10 text-foreground">
+{`${coefficientRow}
+${productRow}
+${' '.repeat(2)}${'-'.repeat(lineWidth)}
+${resultRow}`}
+          </pre>
         </div>
       </div>
 
-      <div className="mt-5 grid gap-2 text-sm text-foreground sm:grid-cols-3">
-        <p>
-          <span className="font-bold">Cociente:</span> {division.quotient.map(formatHornerNumber).join(', ')}
-        </p>
-        <p>
-          <span className="font-bold">Residuo:</span> {formatHornerNumber(division.remainder)}
-        </p>
-        <p>
-          <span className="font-bold">P({formatHornerNumber(division.evaluationPoint)}) =</span>{' '}
-          {formatHornerNumber(division.remainder)}
-        </p>
+      <div className="mt-6 overflow-hidden rounded-[1.25rem] border border-primary/10 bg-background/55">
+        <Table>
+          <TableHeader className="bg-white/95">
+            <TableRow>
+              <TableHead className="h-14 min-w-[220px] uppercase text-[10px] font-bold tracking-[0.2em] text-primary/70">Paso</TableHead>
+              {columns.map((column) => (
+                <TableHead key={`step-head-${column.key}`} className="h-14 min-w-[120px] text-center uppercase text-[10px] font-bold tracking-[0.2em] text-primary/70">
+                  x^{column.power}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow className="hover:bg-primary/5">
+              <TableCell className="py-6 text-xs font-bold uppercase tracking-[0.16em] text-primary/80">Coeficientes</TableCell>
+              {columns.map((column) => (
+                <TableCell key={`coef-cell-${column.key}`} className="py-6 text-center font-mono text-lg">
+                  {formatHornerNumber(column.coefficient)}
+                </TableCell>
+              ))}
+            </TableRow>
+            <TableRow className="hover:bg-primary/5">
+              <TableCell className="py-6 text-xs font-bold uppercase tracking-[0.16em] text-primary/80">
+                Multiplicar por {formatHornerNumber(division.evaluationPoint)}
+              </TableCell>
+              {columns.map((column, columnIndex) => (
+                <TableCell key={`prod-cell-${column.key}`} className="py-6 text-center font-mono text-lg">
+                  {columnIndex === 0 ? '' : formatHornerNumber(column.product)}
+                </TableCell>
+              ))}
+            </TableRow>
+            <TableRow className="hover:bg-primary/5">
+              <TableCell className="py-6 text-xs font-bold uppercase tracking-[0.16em] text-primary">Resultados (b)</TableCell>
+              {columns.map((column) => (
+                <TableCell key={`result-cell-${column.key}`} className="py-6 text-center font-mono text-lg font-semibold">
+                  {formatHornerNumber(column.result)}
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="mt-5 space-y-1 text-base text-foreground">
+        <p><span className="font-bold">Cociente:</span> {division.quotient.map(formatHornerNumber).join(', ')}</p>
+        <p><span className="font-bold">Residuo:</span> {formatHornerNumber(division.remainder)}</p>
+        <p><span className="font-bold">P({formatHornerNumber(division.evaluationPoint)}) =</span> {formatHornerNumber(division.remainder)}</p>
       </div>
     </div>
   );
@@ -245,6 +260,7 @@ export function PolynomialSection() {
   const graphRef = useRef<HTMLCanvasElement | null>(null);
   const [graphHover, setGraphHover] = useState<{ x: number; y: number; mathX: number; mathY: number } | null>(null);
   const graphBoundsRef = useRef<{ xmin: number; xmax: number; ymin: number; ymax: number; padding: number } | null>(null);
+  const isHornerView = method === 'horner' || result?.method === 'horner';
 
   const parsedCoefficients = useMemo(() => {
     try {
@@ -682,7 +698,7 @@ export function PolynomialSection() {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.55fr_0.95fr]">
+      <div className={isHornerView ? 'grid gap-4 xl:grid-cols-1' : 'grid gap-4 xl:grid-cols-[1.55fr_0.95fr]'}>
         <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
           <CardHeader className="space-y-2 p-6">
             <CardTitle className="text-xl font-black">Configuracion polinomica</CardTitle>
@@ -907,6 +923,7 @@ export function PolynomialSection() {
         </Card>
       )}
 
+      {!isHornerView && (
       <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
         <CardHeader className="space-y-2 p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -994,8 +1011,9 @@ export function PolynomialSection() {
           )}
         </CardContent>
       </Card>
+      )}
 
-      {result && result.iterations.length > 0 && (
+      {!isHornerView && result && result.iterations.length > 0 && (
         <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
           <CardHeader className="space-y-2 p-6">
             <div className="flex items-center gap-3">
