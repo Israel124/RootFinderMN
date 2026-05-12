@@ -1,69 +1,59 @@
-# 🚀 Despliegue de RootFinder Pro
+# Despliegue en Render
 
-## Problema Actual
-Tu app funciona en desarrollo pero falla en producción porque GitHub Pages no puede ejecutar el backend Node/Express. Necesitas separar frontend y backend.
+La aplicación actual se despliega como un solo servicio Node que sirve:
 
-## ✅ Solución: Frontend en GitHub Pages + Backend en Render
+- Backend Express
+- Frontend compilado con Vite
+- Autenticación y cookies en el mismo origen
 
-### Paso 1: Desplegar Backend en Render
+## Configuración correcta en Render
 
-1. Ve a [render.com](https://render.com) y crea una cuenta gratuita
-2. Conecta tu repositorio de GitHub
-3. Crea un nuevo **Web Service** con esta configuración:
-   - **Runtime**: Node
-   - **Build Command**: `npm install && npm run build:server`
-   - **Start Command**: `npm run start:api`
-   - **Environment Variables**:
-     - `NODE_ENV=production`
-     - `JWT_SECRET` (genera uno aleatorio)
-     - `BREVO_API_KEY` (tu API key de Brevo)
-     - `BREVO_SENDER_EMAIL` (tu email verificado en Brevo)
-     - `GEMINI_API_KEY` (opcional)
-     - `DATABASE_URL` (opcional, para PostgreSQL)
+Si usas `render.yaml`, el servicio debe quedar así:
 
-4. Una vez desplegado, Render te dará una URL como: `https://tu-app.onrender.com`
+- `buildCommand`: `npm install && npm run build`
+- `startCommand`: `npm run start`
 
-### Paso 2: Configurar Frontend para apuntar al Backend
+Variables mínimas:
 
-1. Crea un archivo `.env.production` en la raíz del proyecto:
-   ```
-   VITE_API_BASE_URL=https://tu-app.onrender.com
-   ```
+- `NODE_ENV=production`
+- `APP_ORIGIN=https://rootfindermn.onrender.com`
+- `CORS_ORIGINS=https://rootfindermn.onrender.com`
+- `JWT_SECRET=<valor seguro>`
 
-2. Compila el frontend con la nueva configuración:
-   ```bash
-   npm run build
-   npm run deploy
-   ```
+Variables opcionales:
 
-### Paso 3: Verificar que funciona
+- `BREVO_API_KEY`
+- `BREVO_SENDER_EMAIL`
+- `DATABASE_URL`
+- `GEMINI_API_KEY`
 
-1. Tu frontend estará en: `https://Israel124.github.io/RootFinderMN/`
-2. El backend estará en: `https://tu-app.onrender.com`
-3. Las llamadas API irán del frontend al backend
+## Si configuraste el servicio manualmente en Render
 
-## 🔧 Comandos para probar localmente
+Debes cambiarlo en el panel de Render. Subir a `main` no basta si el servicio sigue usando la configuración vieja.
 
-```bash
-# Backend solo (puerto 10000)
-npm run dev:api
+Revisa estas dos líneas:
 
-# Frontend solo (puerto 4000)
-npm run dev
+- Build Command: `npm install && npm run build`
+- Start Command: `npm run start`
 
-# Build completo
-npm run build
-```
+No debe usar:
 
-## 📝 Notas Importantes
+- `npm run build:server`
+- `npm run start:api`
 
-- El backend usa archivos JSON locales para persistencia (sin base de datos)
-- Render tiene un límite gratuito de 750 horas/mes
-- Si excedes el límite, el backend se "duerme" y tarda ~30s en despertar
-- Para producción real, considera usar una base de datos como PostgreSQL
+Eso levanta solo el backend/API antigua y no la app integrada.
 
-## 🐛 Si algo falla
+## Síntomas de configuración incorrecta
 
-1. Revisa los logs en Render
-2. Verifica que `VITE_API_BASE_URL` apunte correctamente
-3. Asegúrate de que el CORS esté configurado en el backend
+Si Render sigue con la configuración vieja, puedes ver alguno de estos síntomas:
+
+- pantalla negra o app vacía
+- el frontend nunca carga
+- `/api/*` responde pero la interfaz no aparece
+- sesión atascada al iniciar
+
+## Nota sobre GitHub Pages
+
+La arquitectura actual ya no necesita separar frontend en GitHub Pages y backend en Render para funcionar.
+
+Si quieres usar un solo dominio en Render, esa es ahora la opción más directa.

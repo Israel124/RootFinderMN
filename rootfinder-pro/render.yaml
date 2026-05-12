@@ -1,12 +1,16 @@
 services:
   - type: web
-    name: rootfinder-backend
+    name: rootfinder-pro
     runtime: node
-    buildCommand: npm install && npm run build:server
-    startCommand: npm run start:api
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
     envVars:
       - key: NODE_ENV
         value: production
+      - key: APP_ORIGIN
+        value: https://rootfindermn.onrender.com
+      - key: CORS_ORIGINS
+        value: https://rootfindermn.onrender.com
       - key: JWT_SECRET
         generateValue: true
       - key: BREVO_API_KEY
