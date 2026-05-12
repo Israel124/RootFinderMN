@@ -9,7 +9,7 @@ export interface UiStoreState {
 }
 
 const uiStore = createStore<UiStoreState>({
-  activeTab: 'methods',
+  activeTab: 'taylor',
   activeHistoryModule: 'resolution',
   sidebarCollapsed: false,
   theme: 'dark',

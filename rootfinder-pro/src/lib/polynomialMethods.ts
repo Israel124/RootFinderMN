@@ -15,6 +15,17 @@ export interface PolynomialGraphMarker {
   tone: 'seed' | 'iteration' | 'root';
 }
 
+export interface HornerSyntheticDivision {
+  evaluationPoint: number;
+  coefficients: number[];
+  powers: number[];
+  products: Array<number | null>;
+  results: number[];
+  quotient: number[];
+  remainder: number;
+  polynomialExpression: string;
+}
+
 export interface PolynomialRootResult {
   method: PolynomialRootMethod;
   converged: boolean;
@@ -26,6 +37,7 @@ export interface PolynomialRootResult {
   graphMarkers: PolynomialGraphMarker[];
   polynomialExpression: string;
   params: Record<string, any>;
+  hornerDivisions?: HornerSyntheticDivision[];
 }
 
 type HornerSingleRootResult = {
@@ -35,6 +47,7 @@ type HornerSingleRootResult = {
   iterations: PolynomialIteration[];
   graphMarkers: PolynomialGraphMarker[];
   message: string;
+  syntheticDivision?: HornerSyntheticDivision;
 };
 
 /**
@@ -163,10 +176,12 @@ export class PolynomialMethods {
     const n = coeffs.length - 1;
     const b = new Array(coeffs.length).fill(0);
     const d = new Array(Math.max(coeffs.length - 1, 1)).fill(0);
+    const products: Array<number | null> = new Array(coeffs.length).fill(null);
 
     b[0] = coeffs[0];
     for (let index = 1; index <= n; index += 1) {
-      b[index] = coeffs[index] + x * b[index - 1];
+      products[index] = x * b[index - 1];
+      b[index] = coeffs[index] + products[index]!;
     }
 
     if (n > 0) {
@@ -181,6 +196,27 @@ export class PolynomialMethods {
       derivative: n > 0 ? d[n - 1] : 0,
       b,
       d,
+      products,
+    };
+  }
+
+
+  /**
+   * Prepara la lectura completa de la division sintetica para un valor de x.
+   */
+  static buildHornerSyntheticDivision(coeffs: number[], x: number): HornerSyntheticDivision {
+    const { value, b, products } = this.buildHornerArrays(coeffs, x);
+    const degree = coeffs.length - 1;
+
+    return {
+      evaluationPoint: x,
+      coefficients: coeffs.slice(),
+      powers: coeffs.map((_, index) => degree - index),
+      products,
+      results: b,
+      quotient: b.slice(0, -1),
+      remainder: value,
+      polynomialExpression: this.polynomialToExpression(coeffs),
     };
   }
 
@@ -198,6 +234,7 @@ export class PolynomialMethods {
     const iterations: PolynomialIteration[] = [];
     const graphMarkers: PolynomialGraphMarker[] = [];
     const roots: string[] = [];
+    const hornerDivisions: HornerSyntheticDivision[] = [];
     let remaining = coeffs.slice();
     let seed = x0;
     let converged = true;
@@ -215,6 +252,9 @@ export class PolynomialMethods {
       const result = this.hornerOneRoot(remaining, seed, tol, maxIter, iterations.length);
       iterations.push(...result.iterations);
       graphMarkers.push(...result.graphMarkers);
+      if (result.syntheticDivision) {
+        hornerDivisions.push(result.syntheticDivision);
+      }
 
       if (!result.converged) {
         converged = false;
@@ -262,6 +302,7 @@ export class PolynomialMethods {
       iterations,
       ...graphSummary,
       params: { x0, tol, maxIter, coefficients: coeffs },
+      hornerDivisions,
     };
   }
 
@@ -627,6 +668,7 @@ export class PolynomialMethods {
           iterations,
           graphMarkers,
           message: 'La derivada quedo demasiado cerca de cero durante Horner-Newton.',
+          syntheticDivision: this.buildHornerSyntheticDivision(coeffs, xi),
         };
       }
 
@@ -654,7 +696,8 @@ export class PolynomialMethods {
       });
 
       if (error < tol || Math.abs(this.evaluatePolynomial(coeffs, xiNext)) < tol) {
-        const deflated = b.slice(0, -1);
+        const syntheticDivision = this.buildHornerSyntheticDivision(coeffs, xiNext);
+        const deflated = syntheticDivision.quotient;
         return {
           root: xiNext,
           deflated,
@@ -662,6 +705,7 @@ export class PolynomialMethods {
           iterations,
           graphMarkers,
           message: 'Convergencia alcanzada con Horner-Newton.',
+          syntheticDivision,
         };
       }
 
@@ -675,6 +719,7 @@ export class PolynomialMethods {
       iterations,
       graphMarkers,
       message: 'No se alcanzo convergencia con Horner-Newton en el maximo de iteraciones.',
+      syntheticDivision: this.buildHornerSyntheticDivision(coeffs, xi),
     };
   }
 

@@ -22,6 +22,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import {
+  HornerSyntheticDivision,
   PolynomialGraphMarker,
   PolynomialMethods,
   PolynomialRootMethod,
@@ -79,6 +80,7 @@ function normalizePolynomialHistoryItem(raw: any): PolynomialHistoryItem | null 
     graphMarkers: Array.isArray(raw.graphMarkers) ? raw.graphMarkers : [],
     polynomialExpression: typeof raw.polynomialExpression === 'string' ? raw.polynomialExpression : '',
     params: raw.params && typeof raw.params === 'object' ? raw.params : {},
+    hornerDivisions: Array.isArray(raw.hornerDivisions) ? raw.hornerDivisions : [],
   };
 }
 
@@ -114,6 +116,96 @@ const methodFormula: Record<PolynomialRootMethod, string[]> = {
     'Newton: x_(k+1) = x_k - P(x_k)/P\'(x_k)',
   ],
 };
+
+function formatHornerNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '';
+  if (!Number.isFinite(value)) return 'N/D';
+  if (Math.abs(value) < 1e-10) return '0';
+  const rounded = Number(value.toFixed(8));
+  return rounded.toString();
+}
+
+function HornerDivisionView({ division, index }: { division: HornerSyntheticDivision; index: number }) {
+  const columns = division.coefficients.map((coefficient, coefficientIndex) => ({
+    key: `${division.evaluationPoint}-${coefficientIndex}`,
+    power: division.powers[coefficientIndex],
+    coefficient,
+    product: division.products[coefficientIndex],
+    result: division.results[coefficientIndex],
+  }));
+
+  return (
+    <div className="rounded-[1.5rem] border border-primary/10 bg-background/45 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/70">
+            Division sintetica {index + 1}
+          </p>
+          <p className="mt-2 font-mono text-sm text-muted-foreground break-words [overflow-wrap:anywhere]">
+            Evaluando P({formatHornerNumber(division.evaluationPoint)}) donde P(x) = {division.polynomialExpression}
+          </p>
+        </div>
+        <Badge variant="outline" className="font-mono">
+          x = {formatHornerNumber(division.evaluationPoint)}
+        </Badge>
+      </div>
+
+      <div className="mt-5 overflow-x-auto">
+        <div
+          className="grid min-w-[620px] gap-y-2 font-mono text-sm"
+          style={{ gridTemplateColumns: `140px repeat(${columns.length}, minmax(90px, 1fr))` }}
+        >
+          <div className="py-2 text-xs font-bold uppercase tracking-[0.2em] text-primary/70">Paso</div>
+          {columns.map((column) => (
+            <div key={`head-${column.key}`} className="py-2 text-center text-xs font-bold uppercase tracking-[0.2em] text-primary/70">
+              x^{column.power}
+            </div>
+          ))}
+
+          <div className="border-t border-primary/15 py-3 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+            Coeficientes
+          </div>
+          {columns.map((column) => (
+            <div key={`coef-${column.key}`} className="border-t border-primary/15 py-3 text-center">
+              {formatHornerNumber(column.coefficient)}
+            </div>
+          ))}
+
+          <div className="border-t border-primary/15 py-3 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+            Multiplicar por {formatHornerNumber(division.evaluationPoint)}
+          </div>
+          {columns.map((column, columnIndex) => (
+            <div key={`prod-${column.key}`} className="border-t border-primary/15 py-3 text-center">
+              {columnIndex === 0 ? '' : formatHornerNumber(column.product)}
+            </div>
+          ))}
+
+          <div className="border-t border-primary/25 py-3 text-xs font-bold uppercase tracking-[0.16em] text-primary">
+            Resultados (b)
+          </div>
+          {columns.map((column) => (
+            <div key={`result-${column.key}`} className="border-t border-primary/25 py-3 text-center font-semibold">
+              {formatHornerNumber(column.result)}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-2 text-sm text-foreground sm:grid-cols-3">
+        <p>
+          <span className="font-bold">Cociente:</span> {division.quotient.map(formatHornerNumber).join(', ')}
+        </p>
+        <p>
+          <span className="font-bold">Residuo:</span> {formatHornerNumber(division.remainder)}
+        </p>
+        <p>
+          <span className="font-bold">P({formatHornerNumber(division.evaluationPoint)}) =</span>{' '}
+          {formatHornerNumber(division.remainder)}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function computeGraphDomain(markers: PolynomialGraphMarker[], realRoots: number[]) {
   const realValues = [...realRoots, ...markers.map((marker) => marker.x)].filter(
@@ -793,6 +885,27 @@ export function PolynomialSection() {
           </CardContent>
         </Card>
       </div>
+
+      {result?.method === 'horner' && result.hornerDivisions && result.hornerDivisions.length > 0 && (
+        <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
+          <CardHeader className="space-y-2 p-6">
+            <div className="flex items-center gap-3">
+              <Sigma className="h-5 w-5 text-primary" />
+              <div>
+                <CardTitle className="text-xl font-black">Division sintetica de Horner</CardTitle>
+                <CardDescription>Coeficientes, productos intermedios y resultados b del proceso de deflacion.</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-4 p-6">
+            {result.hornerDivisions.map((division, index) => (
+              <div key={`${division.evaluationPoint}-${division.polynomialExpression}-${index}`}>
+                <HornerDivisionView division={division} index={index} />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
         <CardHeader className="space-y-2 p-6">
