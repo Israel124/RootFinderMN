@@ -171,13 +171,13 @@ ${resultRow}`}
         </div>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-[1.25rem] border border-primary/10 bg-background/55">
-        <Table>
+      <div className="mt-6 overflow-x-auto rounded-[1.25rem] border border-primary/10 bg-background/55">
+        <Table className="min-w-[760px]">
           <TableHeader className="bg-white/95">
             <TableRow>
               <TableHead className="h-14 min-w-[220px] uppercase text-[10px] font-bold tracking-[0.2em] text-primary/70">Paso</TableHead>
               {columns.map((column) => (
-                <TableHead key={`step-head-${column.key}`} className="h-14 min-w-[120px] text-center uppercase text-[10px] font-bold tracking-[0.2em] text-primary/70">
+                <TableHead key={`step-head-${column.key}`} className="h-14 min-w-[96px] text-center uppercase text-[10px] font-bold tracking-[0.2em] text-primary/70">
                   x^{column.power}
                 </TableHead>
               ))}
@@ -271,14 +271,15 @@ function MullerIterationsTable({ iterations }: { iterations: PolynomialRootResul
         </div>
       </CardHeader>
       <CardContent className="p-6">
-        <ScrollArea className="h-[560px] rounded-xl border border-primary/10 bg-background/30">
-          <Table>
+        <ScrollArea className="h-[min(68vh,40rem)] w-full rounded-xl border border-primary/10 bg-background/30">
+          <div className="min-w-0 overflow-x-auto">
+          <Table className="min-w-[1120px]">
             <TableHeader className="sticky top-0 z-10 bg-white/95 border-b border-primary/20 backdrop-blur-sm">
               <TableRow>
-                <TableHead className="min-w-[110px] uppercase text-[10px] font-bold tracking-widest text-primary/70">Iteracion</TableHead>
-                <TableHead className="min-w-[260px] uppercase text-[10px] font-bold tracking-widest text-primary/70">Descripcion</TableHead>
+                <TableHead className="min-w-[96px] uppercase text-[10px] font-bold tracking-widest text-primary/70">Iteracion</TableHead>
+                <TableHead className="min-w-[240px] uppercase text-[10px] font-bold tracking-widest text-primary/70">Descripcion</TableHead>
                 {visibleColumns.map((column) => (
-                  <TableHead key={column} className="min-w-[130px] uppercase text-[10px] font-bold tracking-widest text-primary/70">
+                  <TableHead key={column} className="min-w-[118px] uppercase text-[10px] font-bold tracking-widest text-primary/70">
                     {column}
                   </TableHead>
                 ))}
@@ -298,6 +299,7 @@ function MullerIterationsTable({ iterations }: { iterations: PolynomialRootResul
               ))}
             </TableBody>
           </Table>
+          </div>
         </ScrollArea>
       </CardContent>
     </Card>
@@ -743,7 +745,7 @@ export function PolynomialSection() {
   };
 
   return (
-    <section className="grid gap-6">
+    <section className="grid min-w-0 gap-6">
       <div className="rounded-[2rem] border border-primary/10 bg-linear-to-br from-primary/10 via-card/70 to-card/70 p-8 shadow-2xl backdrop-blur-xl">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-4xl">
@@ -781,7 +783,7 @@ export function PolynomialSection() {
         </div>
       </div>
 
-      <div className={isHornerView || isMullerView ? 'grid gap-4 xl:grid-cols-1' : 'grid gap-4 xl:grid-cols-[1.55fr_0.95fr]'}>
+      <div className={isHornerView || isMullerView ? 'grid min-w-0 gap-4 xl:grid-cols-1' : 'grid min-w-0 gap-4 xl:grid-cols-[1.55fr_0.95fr]'}>
         <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
           <CardHeader className="space-y-2 p-6">
             <CardTitle className="text-xl font-black">Configuracion polinomica</CardTitle>
@@ -1130,8 +1132,9 @@ export function PolynomialSection() {
             </div>
           </CardHeader>
           <CardContent className="p-6">
-            <ScrollArea className="h-[520px] rounded-xl border border-primary/10 bg-background/30">
-              <Table>
+            <ScrollArea className="h-[min(66vh,38rem)] w-full rounded-xl border border-primary/10 bg-background/30">
+              <div className="min-w-0 overflow-x-auto">
+              <Table className="min-w-[1080px]">
                 <TableHeader className="sticky top-0 bg-white/95 z-10 border-b border-primary/20 backdrop-blur-sm">
                   <TableRow>
                     <TableHead className="uppercase text-[10px] font-bold tracking-widest text-primary/70">Iteracion</TableHead>
@@ -1157,6 +1160,7 @@ export function PolynomialSection() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           </CardContent>
         </Card>
@@ -1183,7 +1187,7 @@ export function PolynomialSection() {
               Todavía no hay cálculos polinómicos almacenados.
             </div>
           ) : (
-            <ScrollArea className="h-[520px] pr-4">
+            <ScrollArea className="h-[min(66vh,38rem)] pr-4">
               <div className="space-y-3">
                 {history.map((item) => (
                   <div
