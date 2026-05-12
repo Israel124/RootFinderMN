@@ -186,7 +186,7 @@ export function AuthScreen() {
                   RootFinder
                 </h2>
                 <p className="text-sm leading-7 text-[var(--text-muted)]">
-                  Una identidad propia para trabajar con Taylor, métodos de resolución, raíces polinómicas y sistemas sin depender de imágenes o referencias institucionales externas.
+                  Una identidad propia para trabajar con Metodos Numericos.
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-4 text-sm text-[var(--text-muted)]">
