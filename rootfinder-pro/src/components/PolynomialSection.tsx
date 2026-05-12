@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import {
   HornerSyntheticDivision,
+  MullerFirstIterationDetail,
   PolynomialGraphMarker,
   PolynomialMethods,
   PolynomialRootMethod,
@@ -222,6 +223,87 @@ ${resultRow}`}
   );
 }
 
+function MullerFirstIterationView({ detail }: { detail: MullerFirstIterationDetail }) {
+  return (
+    <div className="rounded-[1.5rem] border border-amber-400/20 bg-linear-to-br from-amber-500/12 to-background/65 p-6 lg:p-7">
+      <div className="flex flex-wrap items-center gap-3">
+        <Badge className="bg-amber-500 text-black">Primera iteracion detallada</Badge>
+        <p className="text-sm text-muted-foreground">Solo este paso se despliega completo; el resto se resume en la tabla.</p>
+      </div>
+      <div className="mt-5 grid gap-3">
+        <div className="rounded-2xl border border-primary/10 bg-background/70 p-4 font-mono text-sm text-foreground">
+          Valores iniciales: [{detail.x0}, {detail.x1}, {detail.x2}]
+        </div>
+        <div className="rounded-2xl border border-primary/10 bg-background/70 p-4 font-mono text-sm leading-7 text-foreground">
+          <p>h0 = x1 - x0 = {detail.x1} - {detail.x0} = <span className="font-semibold text-primary">{detail.h0}</span></p>
+          <p>h1 = x2 - x1 = {detail.x2} - {detail.x1} = <span className="font-semibold text-primary">{detail.h1}</span></p>
+          <p>delta0 = (f(x1) - f(x0)) / h0 = ({detail.f1} - {detail.f0}) / {detail.h0} = <span className="font-semibold text-primary">{detail.delta0}</span></p>
+          <p>delta1 = (f(x2) - f(x1)) / h1 = ({detail.f2} - {detail.f1}) / {detail.h1} = <span className="font-semibold text-primary">{detail.delta1}</span></p>
+          <p>a = (delta1 - delta0) / (h1 + h0) = <span className="font-semibold text-primary">{detail.a}</span></p>
+          <p>b = a*h1 + delta1 = <span className="font-semibold text-primary">{detail.b}</span></p>
+          <p>c = f(x2) = <span className="font-semibold text-primary">{detail.c}</span></p>
+          <p>Discriminante = b^2 - 4ac = <span className="font-semibold text-primary">{detail.discriminant}</span></p>
+          <p>sqrt(discriminante) = <span className="font-semibold text-primary">{detail.sqrtDiscriminant}</span></p>
+          <p>Denominador elegido: b {detail.denominatorBranch} sqrt(discriminante) = <span className="font-semibold text-primary">{detail.denominator}</span></p>
+          <p>x3 = x2 - 2c / denominador = <span className="font-semibold text-primary">{detail.x3}</span></p>
+          <p>Error = |x3 - x2| = <span className="font-semibold text-primary">{detail.error}</span></p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MullerIterationsTable({ iterations }: { iterations: PolynomialRootResult['iterations'] }) {
+  if (iterations.length === 0) return null;
+
+  const orderedColumns = ['x0', 'x1', 'x2', 'h0', 'h1', 'delta0', 'delta1', 'a', 'b', 'c', 'D', 'x3', 'error'];
+  const visibleColumns = orderedColumns.filter((column) => column in iterations[0].values);
+
+  return (
+    <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
+      <CardHeader className="space-y-2 p-6">
+        <div className="flex items-center gap-3">
+          <Sigma className="h-5 w-5 text-primary" />
+          <div>
+            <CardTitle className="text-xl font-black">Tabla de iteraciones de Muller</CardTitle>
+            <CardDescription>Resumen completo de cada iteracion con el diseno de tablas de la app.</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-6">
+        <ScrollArea className="h-[560px] rounded-xl border border-primary/10 bg-background/30">
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-white/95 border-b border-primary/20 backdrop-blur-sm">
+              <TableRow>
+                <TableHead className="min-w-[110px] uppercase text-[10px] font-bold tracking-widest text-primary/70">Iteracion</TableHead>
+                <TableHead className="min-w-[260px] uppercase text-[10px] font-bold tracking-widest text-primary/70">Descripcion</TableHead>
+                {visibleColumns.map((column) => (
+                  <TableHead key={column} className="min-w-[130px] uppercase text-[10px] font-bold tracking-widest text-primary/70">
+                    {column}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {iterations.map((iteration) => (
+                <TableRow key={iteration.iteration} className="hover:bg-primary/5 transition-colors">
+                  <TableCell className="py-5 font-mono text-sm">{iteration.iteration}</TableCell>
+                  <TableCell className="py-5 text-sm leading-6">{iteration.description}</TableCell>
+                  {visibleColumns.map((column) => (
+                    <TableCell key={`${iteration.iteration}-${column}`} className="py-5 font-mono text-sm break-words [overflow-wrap:anywhere]">
+                      {iteration.values[column]}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
+}
+
 function computeGraphDomain(markers: PolynomialGraphMarker[], realRoots: number[]) {
   const realValues = [...realRoots, ...markers.map((marker) => marker.x)].filter(
     (value) => Number.isFinite(value),
@@ -261,6 +343,7 @@ export function PolynomialSection() {
   const [graphHover, setGraphHover] = useState<{ x: number; y: number; mathX: number; mathY: number } | null>(null);
   const graphBoundsRef = useRef<{ xmin: number; xmax: number; ymin: number; ymax: number; padding: number } | null>(null);
   const isHornerView = method === 'horner' || result?.method === 'horner';
+  const isMullerView = method === 'muller' || result?.method === 'muller';
 
   const parsedCoefficients = useMemo(() => {
     try {
@@ -698,7 +781,7 @@ export function PolynomialSection() {
         </div>
       </div>
 
-      <div className={isHornerView ? 'grid gap-4 xl:grid-cols-1' : 'grid gap-4 xl:grid-cols-[1.55fr_0.95fr]'}>
+      <div className={isHornerView || isMullerView ? 'grid gap-4 xl:grid-cols-1' : 'grid gap-4 xl:grid-cols-[1.55fr_0.95fr]'}>
         <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
           <CardHeader className="space-y-2 p-6">
             <CardTitle className="text-xl font-black">Configuracion polinomica</CardTitle>
@@ -923,7 +1006,29 @@ export function PolynomialSection() {
         </Card>
       )}
 
-      {!isHornerView && (
+      {result?.method === 'muller' && (
+        <div className="grid gap-4">
+          {result.mullerFirstIteration ? (
+            <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
+              <CardHeader className="space-y-2 p-6">
+                <div className="flex items-center gap-3">
+                  <Sigma className="h-5 w-5 text-primary" />
+                  <div>
+                    <CardTitle className="text-xl font-black">Metodo de Muller paso a paso</CardTitle>
+                    <CardDescription>La primera iteracion se explica completa y el resto queda resumido debajo.</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6">
+                <MullerFirstIterationView detail={result.mullerFirstIteration} />
+              </CardContent>
+            </Card>
+          ) : null}
+          <MullerIterationsTable iterations={result.iterations} />
+        </div>
+      )}
+
+      {!isHornerView && !isMullerView && (
       <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
         <CardHeader className="space-y-2 p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -1013,7 +1118,7 @@ export function PolynomialSection() {
       </Card>
       )}
 
-      {!isHornerView && result && result.iterations.length > 0 && (
+      {!isHornerView && !isMullerView && result && result.iterations.length > 0 && (
         <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
           <CardHeader className="space-y-2 p-6">
             <div className="flex items-center gap-3">

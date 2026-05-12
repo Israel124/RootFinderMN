@@ -26,6 +26,28 @@ export interface HornerSyntheticDivision {
   polynomialExpression: string;
 }
 
+export interface MullerFirstIterationDetail {
+  x0: string;
+  x1: string;
+  x2: string;
+  f0: string;
+  f1: string;
+  f2: string;
+  h0: string;
+  h1: string;
+  delta0: string;
+  delta1: string;
+  a: string;
+  b: string;
+  c: string;
+  discriminant: string;
+  sqrtDiscriminant: string;
+  denominator: string;
+  denominatorBranch: '+' | '-';
+  x3: string;
+  error: string;
+}
+
 export interface PolynomialRootResult {
   method: PolynomialRootMethod;
   converged: boolean;
@@ -38,6 +60,7 @@ export interface PolynomialRootResult {
   polynomialExpression: string;
   params: Record<string, any>;
   hornerDivisions?: HornerSyntheticDivision[];
+  mullerFirstIteration?: MullerFirstIterationDetail;
 }
 
 type HornerSingleRootResult = {
@@ -318,6 +341,7 @@ export class PolynomialMethods {
     maxIter: number,
   ): PolynomialRootResult {
     const iterations: PolynomialIteration[] = [];
+    let mullerFirstIteration: MullerFirstIterationDetail | undefined;
     const graphMarkers: PolynomialGraphMarker[] = [
       { x: x0, y: this.evaluatePolynomial(coeffs, x0), label: 'x0', tone: 'seed' },
       { x: x1, y: this.evaluatePolynomial(coeffs, x1), label: 'x1', tone: 'seed' },
@@ -345,6 +369,7 @@ export class PolynomialMethods {
       const denominatorPlus = math.add(b, discriminant) as math.Complex;
       const denominatorMinus = math.subtract(b, discriminant) as math.Complex;
       const denominator = math.abs(denominatorPlus) > math.abs(denominatorMinus) ? denominatorPlus : denominatorMinus;
+      const denominatorBranch = denominator === denominatorPlus ? '+' : '-';
 
       if (math.abs(denominator) < 1e-12) {
         const graphSummary = this.buildGraphSummary(coeffs, [], graphMarkers);
@@ -356,11 +381,36 @@ export class PolynomialMethods {
           iterations,
           ...graphSummary,
           params: { x0, x1, x2, tol, maxIter, coefficients: coeffs },
+          mullerFirstIteration,
         };
       }
 
       const z3 = math.subtract(z2, math.divide(math.multiply(c, 2) as math.Complex, denominator) as math.Complex) as math.Complex;
       const error = math.abs(math.subtract(z3, z2) as math.Complex);
+
+      if (iteration === 1) {
+        mullerFirstIteration = {
+          x0: this.formatComplex(z0),
+          x1: this.formatComplex(z1),
+          x2: this.formatComplex(z2),
+          f0: this.formatComplex(f0),
+          f1: this.formatComplex(f1),
+          f2: this.formatComplex(f2),
+          h0: this.formatComplex(h0),
+          h1: this.formatComplex(h1),
+          delta0: this.formatComplex(delta0),
+          delta1: this.formatComplex(delta1),
+          a: this.formatComplex(a),
+          b: this.formatComplex(b),
+          c: this.formatComplex(c),
+          discriminant: this.formatComplex(math.subtract(math.multiply(b, b) as math.Complex, math.multiply(math.multiply(a, c) as math.Complex, 4)) as math.Complex),
+          sqrtDiscriminant: this.formatComplex(discriminant),
+          denominator: this.formatComplex(denominator),
+          denominatorBranch,
+          x3: this.formatComplex(z3),
+          error: error.toExponential(4),
+        };
+      }
 
       iterations.push({
         iteration,
@@ -406,6 +456,7 @@ export class PolynomialMethods {
           iterations,
           ...graphSummary,
           params: { x0, x1, x2, tol, maxIter, coefficients: coeffs },
+          mullerFirstIteration,
         };
       }
 
@@ -428,6 +479,7 @@ export class PolynomialMethods {
       iterations,
       ...graphSummary,
       params: { x0, x1, x2, tol, maxIter, coefficients: coeffs },
+      mullerFirstIteration,
     };
   }
 
