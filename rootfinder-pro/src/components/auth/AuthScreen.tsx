@@ -154,37 +154,33 @@ export function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-base)] px-4 py-8 text-[var(--text-primary)]">
-      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-        <section className="space-y-6">
+    <div className="min-h-screen bg-[var(--bg-base)] px-4 py-5 text-[var(--text-primary)] lg:px-6">
+      <div className="mx-auto grid min-h-[calc(100vh-2.5rem)] max-w-6xl items-center gap-6 lg:grid-cols-[1.08fr_0.92fr]">
+        <section className="space-y-5">
           <p className="inline-flex rounded-full border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
             RootFinder Pro
           </p>
           <div>
-            <h1 className="max-w-3xl text-5xl font-extrabold leading-none">
+            <h1 className="max-w-3xl text-4xl font-extrabold leading-none lg:text-5xl">
               Ingeniería numérica con una base más limpia.
             </h1>
-            <p className="mt-5 max-w-xl text-base leading-7 text-[var(--text-muted)]">
-              La sesión ahora vive con `accessToken` en memoria, refresh seguro por cookie y validación
-              alineada con el backend refactorizado.
+            <p className="mt-4 max-w-xl text-sm leading-6 text-[var(--text-muted)] lg:text-base">
+              Metodos numéricos para encontrar raíces de funciones, con historial remoto, verificación de correo y una arquitectura lista para crecer con nuevos módulos matemáticos.
             </p>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--text-muted)]">
-              Desarrollado por Israel Espinoza, Luis Pérez y Randall Argüello para la Universidad Nacional de
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--text-muted)]">
+              Desarrollado por Israel Espinoza, Luis Pérez y Randall Argüello en la Universidad Nacional de
               Ingeniería, UNI Managua.
             </p>
           </div>
 
           <div className="overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[var(--bg-surface)] shadow-2xl">
             <div
-              className="relative min-h-[420px] bg-cover bg-center"
+              className="relative h-[220px] bg-cover bg-center sm:h-[260px] lg:h-[300px]"
               style={{ backgroundImage: `linear-gradient(180deg, rgba(8,12,10,0.08) 0%, rgba(8,12,10,0.45) 58%, rgba(8,12,10,0.92) 100%), url('${UNI_BUILDING_IMAGE}')` }}
             >
-              <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[#0b1536]/80 to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
+              <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-[#0b1536]/80 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5 lg:p-6">
                 <div className="flex flex-wrap gap-3">
-                  <span className="inline-flex rounded-full bg-cyan-400/15 px-4 py-2 text-sm font-semibold uppercase tracking-[0.16em] text-cyan-300 backdrop-blur">
-                    Alianza Académica
-                  </span>
                   <span className="inline-flex rounded-full bg-white/12 px-4 py-2 text-sm font-semibold text-white backdrop-blur">
                     Sede Central, Managua
                   </span>
@@ -211,7 +207,7 @@ export function AuthScreen() {
 
         <Card className="overflow-hidden rounded-[2rem] border-[var(--border)] bg-[var(--bg-surface)] shadow-2xl">
           <CardContent className="p-0">
-            <div className="border-b border-[var(--border)] px-7 py-6">
+            <div className="border-b border-[var(--border)] px-6 py-5 lg:px-7 lg:py-6">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
                 {header.eyebrow}
               </p>
@@ -219,7 +215,7 @@ export function AuthScreen() {
               <p className="mt-3 text-sm leading-6 text-[var(--text-muted)]">{header.description}</p>
             </div>
 
-            <div className="px-7 py-7">
+            <div className="px-6 py-6 lg:px-7 lg:py-7">
               {mode === 'verify' ? (
                 <form onSubmit={handleVerify} className="space-y-5">
                   <div className="rounded-3xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4 text-sm text-[var(--text-muted)]">
