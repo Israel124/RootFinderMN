@@ -8,6 +8,7 @@ import { TaylorSection } from '@/components/modules/taylor/TaylorSection';
 import { useAuth } from '@/hooks/useAuth';
 import { useHistory } from '@/hooks/useHistory';
 import { useModuleHistoryCounts } from '@/hooks/useModuleHistoryCounts';
+import type { AuthUser } from '@/types';
 import { setActiveTab, toggleSidebar, useUiStore } from '@/stores/uiStore';
 import type { AppTab } from '@/types';
 
@@ -26,15 +27,41 @@ function ModuleLoader() {
   );
 }
 
+function AuthenticatedWorkspace({ user, logout }: { user: AuthUser; logout: () => Promise<void> }) {
+  const activeTab = useUiStore((state) => state.activeTab);
+  const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
+  const history = useHistory();
+  const counts = useModuleHistoryCounts(history.items.length);
+
+  return (
+    <AppShell
+      activeTab={activeTab}
+      activeModuleLabel={getModuleLabel(activeTab)}
+      user={user}
+      sidebarCollapsed={sidebarCollapsed}
+      onToggleSidebar={toggleSidebar}
+      onNavigate={setActiveTab}
+      onLogout={() => void logout()}
+      counts={counts}
+    >
+      {activeTab === 'taylor' ? (
+        <TaylorSection />
+      ) : activeTab === 'polynomial' ? (
+        <PolynomialSection />
+      ) : activeTab === 'systems' ? (
+        <NewtonSystemSection />
+      ) : (
+        <ResolutionWorkspace activeTab={activeTab} history={history} />
+      )}
+    </AppShell>
+  );
+}
+
 /**
  * Punto de entrada principal de la aplicación integrado con la nueva arquitectura.
  */
 export default function App() {
   const { user, isAuthenticated, isBootstrapping, logout } = useAuth();
-  const activeTab = useUiStore((state) => state.activeTab);
-  const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
-  const history = useHistory();
-  const counts = useModuleHistoryCounts(history.items.length);
 
   if (isBootstrapping) {
     return <ModuleLoader />;
@@ -51,26 +78,7 @@ export default function App() {
 
   return (
     <>
-      <AppShell
-        activeTab={activeTab}
-        activeModuleLabel={getModuleLabel(activeTab)}
-        user={user}
-        sidebarCollapsed={sidebarCollapsed}
-        onToggleSidebar={toggleSidebar}
-        onNavigate={setActiveTab}
-        onLogout={() => void logout()}
-        counts={counts}
-      >
-        {activeTab === 'taylor' ? (
-          <TaylorSection />
-        ) : activeTab === 'polynomial' ? (
-          <PolynomialSection />
-        ) : activeTab === 'systems' ? (
-          <NewtonSystemSection />
-        ) : (
-          <ResolutionWorkspace activeTab={activeTab} history={history} />
-        )}
-      </AppShell>
+      <AuthenticatedWorkspace user={user} logout={logout} />
       <Toaster position="bottom-right" richColors />
     </>
   );

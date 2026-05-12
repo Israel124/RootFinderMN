@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient, ApiClientError, setUnauthorizedHandler } from '@/lib/apiClient';
 import {
   clearAuthSession,
+  getAuthState,
   setAuthError,
   setAuthSession,
   setAuthStatus,
@@ -18,6 +19,8 @@ import type {
   UpdateProfileInput,
   VerifyEmailInput,
 } from '@/types';
+
+const BOOTSTRAP_TIMEOUT_MS = 7000;
 
 interface AuthActionState {
   user: AuthUser | null;
@@ -85,10 +88,16 @@ export function useAuth(): AuthActionState {
 
   const checkSession = useCallback(async (): Promise<AuthSuccessResponse | null> => {
     setAuthStatus('bootstrapping');
-    const response = await refreshSession();
+    const response = await Promise.race<AuthSuccessResponse | null>([
+      refreshSession(),
+      new Promise<AuthSuccessResponse | null>((resolve) => {
+        window.setTimeout(() => resolve(null), BOOTSTRAP_TIMEOUT_MS);
+      }),
+    ]);
     if (response) {
       setAuthStatus('authenticated');
     } else {
+      clearAuthSession();
       setAuthStatus('anonymous');
     }
     return response;
@@ -102,6 +111,24 @@ export function useAuth(): AuthActionState {
     isBootstrappedRef.current = true;
     void checkSession();
   }, [checkSession]);
+
+  useEffect(() => {
+    if (status !== 'bootstrapping') {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      const currentStatus = getAuthState().status;
+      if (currentStatus === 'bootstrapping') {
+        clearAuthSession();
+        setAuthStatus('anonymous');
+      }
+    }, BOOTSTRAP_TIMEOUT_MS + 500);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [status]);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
