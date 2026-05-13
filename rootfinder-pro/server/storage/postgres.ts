@@ -66,16 +66,26 @@ export class PostgresStorage implements StorageEngine {
   private readonly pool: Pool;
 
   constructor(databaseUrl: string) {
+    let ssl: false | { rejectUnauthorized: false } = false;
+
+    try {
+      const parsedUrl = new URL(databaseUrl);
+      const localHosts = ["localhost", "127.0.0.1", "::1"];
+      ssl = localHosts.includes(parsedUrl.hostname)
+        ? false
+        : { rejectUnauthorized: false };
+    } catch {
+      ssl = databaseUrl.includes("localhost")
+        ? false
+        : { rejectUnauthorized: false };
+    }
+
     this.pool = new Pool({
       connectionString: databaseUrl,
       max: 10,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-      ssl: databaseUrl.includes("localhost")
-        ? false
-        : {
-            rejectUnauthorized: false,
-          },
+      connectionTimeoutMillis: 5000,
+      ssl,
     });
   }
 

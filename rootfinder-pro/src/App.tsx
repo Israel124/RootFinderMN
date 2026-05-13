@@ -6,11 +6,12 @@ import { PolynomialSection } from '@/components/modules/polynomial/PolynomialSec
 import { ResolutionWorkspace } from '@/components/modules/resolution/ResolutionWorkspace';
 import { NewtonSystemSection } from '@/components/modules/systems/NewtonSystemSection';
 import { TaylorSection } from '@/components/modules/taylor/TaylorSection';
+import { WelcomeLanding } from '@/components/welcome/WelcomeLanding';
 import { useAuth } from '@/hooks/useAuth';
 import { useHistory } from '@/hooks/useHistory';
 import { useModuleHistoryCounts } from '@/hooks/useModuleHistoryCounts';
 import type { AuthUser } from '@/types';
-import { setActiveTab, toggleSidebar, useUiStore } from '@/stores/uiStore';
+import { setActiveTab, toggleSidebar, useUiStore, markWelcomeAsSeen } from '@/stores/uiStore';
 import type { AppTab } from '@/types';
 
 function getModuleLabel(tab: AppTab): string {
@@ -59,10 +60,30 @@ function AuthenticatedWorkspace({ user, logout }: { user: AuthUser; logout: () =
 }
 
 /**
+ * Componente de bienvenida que se muestra después de autenticarse.
+ */
+function WelcomeScreenWithNavigation({ user, onContinue }: { user: AuthUser; onContinue: () => void }) {
+  return (
+    <WelcomeLanding
+      userName={user.username}
+      onNavigateToLab={() => {
+        setActiveTab('systems');
+        onContinue();
+      }}
+      onNavigateToRootFinder={() => {
+        setActiveTab('taylor');
+        onContinue();
+      }}
+    />
+  );
+}
+
+/**
  * Punto de entrada principal de la aplicación integrado con la nueva arquitectura.
  */
 export default function App() {
   const { user, isAuthenticated, isBootstrapping, logout } = useAuth();
+  const hasSeenWelcome = useUiStore((state) => state.hasSeenWelcome);
   const [bootstrapExpired, setBootstrapExpired] = useState(false);
 
   useEffect(() => {
@@ -88,6 +109,18 @@ export default function App() {
     return (
       <>
         <AuthScreen />
+        <Toaster position="bottom-right" richColors />
+      </>
+    );
+  }
+
+  if (!hasSeenWelcome) {
+    return (
+      <>
+        <WelcomeScreenWithNavigation
+          user={user}
+          onContinue={() => markWelcomeAsSeen()}
+        />
         <Toaster position="bottom-right" richColors />
       </>
     );

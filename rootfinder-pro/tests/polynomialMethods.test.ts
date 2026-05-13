@@ -49,6 +49,17 @@ test('Bairstow calcula valores iniciales automaticos usables', () => {
   assert.ok(Math.abs(roots[2] - 1) < 1e-5);
 });
 
+test('Bairstow calcula estimaciones iniciales small y large como en la referencia', () => {
+  const coeffs = [1, 3, -1, -3];
+  const small = PolynomialMethods.estimateBairstowInitialValues(coeffs, 'small');
+  const large = PolynomialMethods.estimateBairstowInitialValues(coeffs, 'large');
+
+  assert.equal(small.r0, 1 / 3);
+  assert.equal(small.s0, -1);
+  assert.equal(large.r0, 3);
+  assert.equal(large.s0, -1);
+});
+
 test('Horner-Newton aproxima una raiz de x^3 + 3x^2 - x - 3', () => {
   const result = PolynomialMethods.hornerRoot([1, 3, -1, -3], 0.8, 1e-8, 30);
   assert.equal(result.converged, true);

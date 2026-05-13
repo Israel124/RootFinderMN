@@ -22,7 +22,10 @@ const __dirname = path.dirname(__filename);
  */
 export function loadConfig(): AppConfig {
   const appOrigin = process.env.APP_ORIGIN || "http://localhost:4000";
-  const corsOrigins = (process.env.CORS_ORIGINS || `${appOrigin},http://localhost:5173,http://127.0.0.1:5173`)
+  const corsOrigins = (
+    process.env.CORS_ORIGINS || 
+    `${appOrigin},http://localhost:5173,http://127.0.0.1:5173,http://localhost:4001,http://127.0.0.1:4001,http://localhost:4000,http://localhost:4003`
+  )
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);

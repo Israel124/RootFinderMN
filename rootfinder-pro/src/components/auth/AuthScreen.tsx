@@ -158,53 +158,28 @@ export function AuthScreen() {
           <div className="flex items-center gap-3">
             <BrandLogo size="md" />
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+              <p className="text-[30px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
                 RootFinder
               </p>
-              <p className="text-sm font-medium text-[var(--text-primary)]">Metodos numericos en una sola marca</p>
+              <p className="text-sm font-medium text-[var(--text-primary)]">Métodos numericos</p>
             </div>
           </div>
           <div>
-            <h1 className="max-w-3xl text-4xl font-extrabold leading-none lg:text-5xl">
+            <h1 className="max-w-3xl text-3xl font-extrabold leading-none lg:text-3xl">
               Donde la evolución de los métodos numéricos se convierte en una sola plataforma de innovación real.
             </h1>
             <p className="mt-4 max-w-xl text-sm leading-6 text-[var(--text-muted)] lg:text-base">
-              Metodos numéricos para encontrar raíces de funciones, con historial remoto, verificación de correo y una arquitectura lista para crecer con nuevos módulos matemáticos.
+              Proyecto elaborado por <a href="Israel Espinoza | Luis Pérez, | Randall Arguello" className="font-medium text-[var(--text-primary)] hover:underline">
+                Israel Espinoza | Luis Pérez | Randall Arguello
+              </a>
             </p>
-          </div>
-
-          <div className="overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[linear-gradient(135deg,rgba(16,185,129,0.10),rgba(8,12,10,0.96))] shadow-2xl">
-            <div className="grid gap-5 p-6 sm:p-7 lg:grid-cols-[0.9fr_1.1fr] lg:p-8">
-              <div className="flex items-center justify-center rounded-[1.6rem] border border-[var(--border)] bg-[#09120d] p-8">
-                <BrandLogo size="lg" />
-              </div>
-              <div className="space-y-4">
-                <p className="inline-flex rounded-full border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                  Marca principal
-                </p>
-                <h2 className="text-2xl font-black tracking-tight text-[var(--text-primary)]">
-                  RootFinder
-                </h2>
-                <p className="text-sm leading-7 text-[var(--text-muted)]">
-                  Una identidad propia para trabajar con Metodos Numericos.
-                </p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-4 text-sm text-[var(--text-muted)]">
-                    Logo unificado en app, landing y navegador
-                  </div>
-                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-4 text-sm text-[var(--text-muted)]">
-                    Experiencia enfocada en la marca y el producto
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
             {[
-              'Historial remoto como fuente única',
-              'Verificación de correo integrada',
-              'Arquitectura lista para módulos nuevos',
+              'Laboratorio de análisis numérico',
+              'Motor de iteraciones y convergencia visual',
+              'Calculo numérico más rápido y preciso',
             ].map((item) => (
               <div key={item} className="rounded-3xl border border-[var(--border)] bg-[var(--bg-surface)] p-4 text-sm text-[var(--text-muted)]">
                 {item}
@@ -385,11 +360,6 @@ export function AuthScreen() {
                   </p>
                 </form>
               )}
-
-              <div className="mt-6 flex items-start gap-3 rounded-3xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4 text-sm text-[var(--text-muted)]">
-                <AlertTriangle className="mt-0.5 h-4 w-4 text-[var(--accent-amber)]" />
-                El acceso usa `httpOnly` cookie para refresh y token en memoria para las solicitudes activas.
-              </div>
             </div>
           </CardContent>
         </Card>

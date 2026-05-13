@@ -6,6 +6,7 @@ export interface UiStoreState {
   activeHistoryModule: HistoryModule;
   sidebarCollapsed: boolean;
   theme: AppTheme;
+  hasSeenWelcome: boolean;
 }
 
 const uiStore = createStore<UiStoreState>({
@@ -13,6 +14,7 @@ const uiStore = createStore<UiStoreState>({
   activeHistoryModule: 'resolution',
   sidebarCollapsed: false,
   theme: 'dark',
+  hasSeenWelcome: false,
 });
 
 /**
@@ -76,5 +78,15 @@ export function setTheme(theme: AppTheme): void {
   uiStore.setState((current) => ({
     ...current,
     theme,
+  }));
+}
+
+/**
+ * Marca que el usuario ha visto la página de bienvenida.
+ */
+export function markWelcomeAsSeen(): void {
+  uiStore.setState((current) => ({
+    ...current,
+    hasSeenWelcome: true,
   }));
 }

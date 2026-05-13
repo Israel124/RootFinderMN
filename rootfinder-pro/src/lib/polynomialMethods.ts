@@ -1,6 +1,7 @@
 import * as math from 'mathjs';
 
 export type PolynomialRootMethod = 'muller' | 'bairstow' | 'horner';
+export type BairstowInitialStrategy = 'small' | 'large' | 'auto';
 
 export interface PolynomialIteration {
   iteration: number;
@@ -48,6 +49,31 @@ export interface MullerFirstIterationDetail {
   error: string;
 }
 
+export interface BairstowFirstIterationDetail {
+  degree: number;
+  coefficients: string[];
+  strategy: BairstowInitialStrategy;
+  strategyLabel: string;
+  strategyFormula: string;
+  r0: string;
+  s0: string;
+  r: string;
+  s: string;
+  b: string[];
+  c: string[];
+  b0: string;
+  b1: string;
+  c1: string;
+  c2: string;
+  c3: string;
+  denominator: string;
+  deltaR: string;
+  deltaS: string;
+  nextR: string;
+  nextS: string;
+  error: string;
+}
+
 export interface PolynomialRootResult {
   method: PolynomialRootMethod;
   converged: boolean;
@@ -61,6 +87,7 @@ export interface PolynomialRootResult {
   params: Record<string, any>;
   hornerDivisions?: HornerSyntheticDivision[];
   mullerFirstIteration?: MullerFirstIterationDetail;
+  bairstowFirstIteration?: BairstowFirstIterationDetail;
 }
 
 type HornerSingleRootResult = {
@@ -77,6 +104,18 @@ type HornerSingleRootResult = {
  * Implementa métodos de raíces polinómicas y sus utilidades auxiliares.
  */
 export class PolynomialMethods {
+  static readonly BAIRSTOW_STRATEGY_LABELS: Record<BairstowInitialStrategy, string> = {
+    small: 'Variables pequenas',
+    large: 'Variables grandes',
+    auto: 'Automatico',
+  };
+
+  static readonly BAIRSTOW_STRATEGY_FORMULAS: Record<BairstowInitialStrategy, string> = {
+    small: 'r0 = a_n / a_2, s0 = a_0 / a_2',
+    large: 'r0 = a_(n-1) / a_n, s0 = a_(n-2) / a_n',
+    auto: 'Busqueda automatica entre estimaciones estables',
+  };
+
   /**
    * Parsea coeficientes separados por coma, punto y coma o espacios.
    */
@@ -535,9 +574,25 @@ export class PolynomialMethods {
   /**
    * Estima valores iniciales razonables para Bairstow.
    */
-  static estimateBairstowInitialValues(coeffs: number[]) {
+  static estimateBairstowInitialValues(coeffs: number[], strategy: BairstowInitialStrategy = 'auto') {
     if (coeffs.length < 3) {
       return { r0: 0, s0: 0 };
+    }
+
+    if (strategy === 'small') {
+      const a2 = coeffs[coeffs.length - 3];
+      return {
+        r0: Math.abs(a2) > 1e-12 ? coeffs[0] / a2 : 0,
+        s0: Math.abs(a2) > 1e-12 ? coeffs[coeffs.length - 1] / a2 : 0,
+      };
+    }
+
+    if (strategy === 'large') {
+      const leading = coeffs[0];
+      return {
+        r0: Math.abs(leading) > 1e-12 ? coeffs[1] / leading : 0,
+        s0: Math.abs(leading) > 1e-12 ? coeffs[2] / leading : 0,
+      };
     }
 
     const leading = coeffs[0];
@@ -569,6 +624,55 @@ export class PolynomialMethods {
     return { r0: 0, s0: -1 };
   }
 
+  static buildBairstowFirstIterationDetail(
+    coeffs: number[],
+    strategy: BairstowInitialStrategy,
+    detail: {
+      r: number;
+      s: number;
+      b: number[];
+      c: number[];
+      deltaR: number;
+      deltaS: number;
+      nextR: number;
+      nextS: number;
+      denominator: number;
+      error: number;
+    },
+  ): BairstowFirstIterationDetail {
+    const degree = coeffs.length - 1;
+    const format = (value: number, digits: number = 10) => {
+      if (!Number.isFinite(value)) return 'N/D';
+      if (Math.abs(value) < 1e-10) return '0';
+      return Number(value.toFixed(digits)).toString();
+    };
+
+    return {
+      degree,
+      coefficients: coeffs.map((item) => format(item, 8)),
+      strategy,
+      strategyLabel: this.BAIRSTOW_STRATEGY_LABELS[strategy],
+      strategyFormula: this.BAIRSTOW_STRATEGY_FORMULAS[strategy],
+      r0: format(detail.r),
+      s0: format(detail.s),
+      r: format(detail.r),
+      s: format(detail.s),
+      b: detail.b.map((item) => format(item, 8)),
+      c: detail.c.map((item) => format(item, 8)),
+      b0: format(detail.b[0], 8),
+      b1: format(detail.b[1], 8),
+      c1: format(detail.c[1], 8),
+      c2: format(detail.c[2], 8),
+      c3: format(detail.c[3], 8),
+      denominator: format(detail.denominator, 10),
+      deltaR: format(detail.deltaR, 10),
+      deltaS: format(detail.deltaS, 10),
+      nextR: format(detail.nextR, 10),
+      nextS: format(detail.nextS, 10),
+      error: format(detail.error, 10),
+    };
+  }
+
   /**
    * Factoriza completamente un polinomio por Bairstow.
    */
@@ -578,6 +682,7 @@ export class PolynomialMethods {
     s0: number = PolynomialMethods.estimateBairstowInitialValues(coeffs).s0,
     tol: number,
     maxIter: number,
+    strategy: BairstowInitialStrategy = 'auto',
   ): PolynomialRootResult {
     const iterations: PolynomialIteration[] = [];
     const roots: string[] = [];
@@ -586,6 +691,7 @@ export class PolynomialMethods {
     let s = s0;
     let deflationCount = 0;
     const maxDeflations = Math.max(coeffs.length * 2, 4);
+    let firstIterationDetail: BairstowFirstIterationDetail | undefined;
 
     while (aAsc.length > 3) {
       if (deflationCount >= maxDeflations) {
@@ -615,6 +721,24 @@ export class PolynomialMethods {
 
         const deltaR = (b[0] * c[3] - b[1] * c[2]) / denominator;
         const deltaS = (b[1] * c[1] - b[0] * c[2]) / denominator;
+        const nextR = r + deltaR;
+        const nextS = s + deltaS;
+        const iterationError = Math.max(Math.abs(deltaR), Math.abs(deltaS));
+
+        if (!firstIterationDetail) {
+          firstIterationDetail = this.buildBairstowFirstIterationDetail(coeffs, strategy, {
+            r,
+            s,
+            b,
+            c,
+            deltaR,
+            deltaS,
+            nextR,
+            nextS,
+            denominator,
+            error: iterationError,
+          });
+        }
 
         iterations.push({
           iteration: iterations.length + 1,
@@ -628,11 +752,16 @@ export class PolynomialMethods {
             residuo1: b[1].toExponential(4),
             b: `[${b.slice().reverse().map((item) => item.toFixed(6)).join(', ')}]`,
             c: `[${c.slice().reverse().map((item) => item.toFixed(6)).join(', ')}]`,
+            c1: c[1].toExponential(4),
+            c2: c[2].toExponential(4),
+            c3: c[3].toExponential(4),
+            denominador: denominator.toExponential(4),
+            error: iterationError.toExponential(4),
           },
         });
 
-        r += deltaR;
-        s += deltaS;
+        r = nextR;
+        s = nextS;
 
         if (Math.abs(deltaR) + Math.abs(deltaS) < tol) {
           converged = true;
@@ -649,7 +778,8 @@ export class PolynomialMethods {
           roots,
           iterations,
           ...graphSummary,
-          params: { r0, s0, tol, maxIter, coefficients: coeffs },
+          params: { r0, s0, tol, maxIter, coefficients: coeffs, strategy },
+          bairstowFirstIteration: firstIterationDetail,
         };
       }
 
@@ -688,7 +818,8 @@ export class PolynomialMethods {
       roots,
       iterations,
       ...graphSummary,
-      params: { r0, s0, tol, maxIter, coefficients: coeffs },
+      params: { r0, s0, tol, maxIter, coefficients: coeffs, strategy },
+      bairstowFirstIteration: firstIterationDetail,
     };
   }
 

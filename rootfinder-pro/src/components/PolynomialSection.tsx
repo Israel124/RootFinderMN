@@ -22,6 +22,8 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import {
+  BairstowFirstIterationDetail,
+  BairstowInitialStrategy,
   HornerSyntheticDivision,
   MullerFirstIterationDetail,
   PolynomialGraphMarker,
@@ -82,6 +84,8 @@ function normalizePolynomialHistoryItem(raw: any): PolynomialHistoryItem | null 
     polynomialExpression: typeof raw.polynomialExpression === 'string' ? raw.polynomialExpression : '',
     params: raw.params && typeof raw.params === 'object' ? raw.params : {},
     hornerDivisions: Array.isArray(raw.hornerDivisions) ? raw.hornerDivisions : [],
+    mullerFirstIteration: raw.mullerFirstIteration && typeof raw.mullerFirstIteration === 'object' ? raw.mullerFirstIteration : undefined,
+    bairstowFirstIteration: raw.bairstowFirstIteration && typeof raw.bairstowFirstIteration === 'object' ? raw.bairstowFirstIteration : undefined,
   };
 }
 
@@ -116,6 +120,16 @@ const methodFormula: Record<PolynomialRootMethod, string[]> = {
     'Una segunda pasada entrega P\'(x)',
     'Newton: x_(k+1) = x_k - P(x_k)/P\'(x_k)',
   ],
+};
+
+const bairstowStrategyLabel: Record<Exclude<BairstowInitialStrategy, 'auto'>, string> = {
+  small: 'Variables pequenas',
+  large: 'Variables grandes',
+};
+
+const bairstowStrategyFormula: Record<Exclude<BairstowInitialStrategy, 'auto'>, string> = {
+  small: 'r0 = a_n / a_2, s0 = a_0 / a_2',
+  large: 'r0 = a_(n-1) / a_n, s0 = a_(n-2) / a_n',
 };
 
 function formatHornerNumber(value: number | null | undefined): string {
@@ -321,6 +335,110 @@ function MullerIterationsTable({ iterations }: { iterations: PolynomialRootResul
   );
 }
 
+function BairstowFirstIterationView({ detail }: { detail: BairstowFirstIterationDetail }) {
+  const degree = detail.degree;
+  const topIndex = degree;
+  const nextIndex = Math.max(degree - 1, 0);
+
+  return (
+    <div className="rounded-[1.5rem] border border-amber-400/20 bg-linear-to-br from-amber-500/12 to-background/65 p-6 lg:p-7">
+      <div className="flex flex-wrap items-center gap-3">
+        <Badge className="bg-amber-500 text-black">Primera iteracion detallada</Badge>
+        <p className="text-sm text-muted-foreground">Replica el paso a paso del ejemplo, pero integrado al tema visual de la app.</p>
+      </div>
+      <div className="mt-5 grid gap-3">
+        <div className="rounded-2xl border border-primary/10 bg-background/70 p-4 font-mono text-sm text-foreground">
+          Estrategia: {detail.strategyLabel} | {detail.strategyFormula}
+        </div>
+        <div className="rounded-2xl border border-primary/10 bg-background/70 p-4 font-mono text-sm text-foreground">
+          Valores iniciales: r0 = <span className="font-semibold text-primary">{detail.r0}</span>, s0 = <span className="font-semibold text-primary">{detail.s0}</span>
+        </div>
+        <div className="rounded-2xl border border-primary/10 bg-background/70 p-4 font-mono text-sm leading-7 text-foreground">
+          <p>Polinomio de grado n = {detail.degree} con coeficientes [{detail.coefficients.join(', ')}]</p>
+          <p>b{topIndex} = a{topIndex} = <span className="font-semibold text-primary">{detail.b[topIndex]}</span></p>
+          <p>b{nextIndex} = a{nextIndex} + r·b{topIndex} = <span className="font-semibold text-primary">{detail.b[nextIndex]}</span></p>
+          <p>Coeficientes b = [{detail.b.slice().reverse().join(', ')}]</p>
+          <p>Coeficientes c = [{detail.c.slice().reverse().join(', ')}]</p>
+          <p>c2·Δr + c3·Δs = -b1 → {detail.c2}·Δr + {detail.c3}·Δs = -({detail.b1})</p>
+          <p>c1·Δr + c2·Δs = -b0 → {detail.c1}·Δr + {detail.c2}·Δs = -({detail.b0})</p>
+          <p>Determinante = c2^2 - c1·c3 = <span className="font-semibold text-primary">{detail.denominator}</span></p>
+          <p>Δr = <span className="font-semibold text-primary">{detail.deltaR}</span></p>
+          <p>Δs = <span className="font-semibold text-primary">{detail.deltaS}</span></p>
+          <p>r1 = r0 + Δr = <span className="font-semibold text-primary">{detail.nextR}</span></p>
+          <p>s1 = s0 + Δs = <span className="font-semibold text-primary">{detail.nextS}</span></p>
+          <p>Error = max(|Δr|, |Δs|) = <span className="font-semibold text-primary">{detail.error}</span></p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BairstowIterationsTable({ iterations }: { iterations: PolynomialRootResult['iterations'] }) {
+  if (iterations.length === 0) return null;
+
+  const orderedColumns = ['r', 's', 'residuo0', 'residuo1', 'c1', 'c2', 'c3', 'Delta r', 'Delta s', 'denominador', 'error'];
+  const visibleColumns = orderedColumns.filter((column) => column in iterations[0].values);
+  const columnLabels: Record<string, string> = {
+    r: 'r',
+    s: 's',
+    residuo0: 'b0',
+    residuo1: 'b1',
+    c1: 'c1',
+    c2: 'c2',
+    c3: 'c3',
+    'Delta r': 'Δr',
+    'Delta s': 'Δs',
+    denominador: 'D',
+    error: 'Error',
+  };
+
+  return (
+    <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
+      <CardHeader className="space-y-2 p-6">
+        <div className="flex items-center gap-3">
+          <Sigma className="h-5 w-5 text-primary" />
+          <div>
+            <CardTitle className="text-xl font-black">Tabla de iteraciones de Bairstow</CardTitle>
+            <CardDescription>Seguimiento de r, s, residuos y correcciones en el formato del ejemplo.</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-6">
+        <ScrollArea className="h-[min(68vh,40rem)] w-full rounded-xl border border-primary/10 bg-background/30">
+          <div className="min-w-0 overflow-x-auto">
+            <Table className="min-w-[1180px]">
+              <TableHeader className="sticky top-0 z-10 bg-white/95 border-b border-primary/20 backdrop-blur-sm">
+                <TableRow>
+                  <TableHead className="min-w-[96px] uppercase text-[10px] font-bold tracking-widest text-primary/70">Iteracion</TableHead>
+                  <TableHead className="min-w-[240px] uppercase text-[10px] font-bold tracking-widest text-primary/70">Descripcion</TableHead>
+                  {visibleColumns.map((column) => (
+                    <TableHead key={column} className="min-w-[118px] uppercase text-[10px] font-bold tracking-widest text-primary/70">
+                      {columnLabels[column] ?? column}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {iterations.map((iteration) => (
+                  <TableRow key={iteration.iteration} className="hover:bg-primary/5 transition-colors">
+                    <TableCell className="py-5 font-mono text-sm">{iteration.iteration}</TableCell>
+                    <TableCell className="py-5 text-sm leading-6">{iteration.description}</TableCell>
+                    {visibleColumns.map((column) => (
+                      <TableCell key={`${iteration.iteration}-${column}`} className="py-5 font-mono text-sm break-words [overflow-wrap:anywhere]">
+                        {iteration.values[column]}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
+}
+
 function computeGraphDomain(markers: PolynomialGraphMarker[], realRoots: number[]) {
   const realValues = [...realRoots, ...markers.map((marker) => marker.x)].filter(
     (value) => Number.isFinite(value),
@@ -342,6 +460,7 @@ function computeGraphDomain(markers: PolynomialGraphMarker[], realRoots: number[
 export function PolynomialSection() {
   const [coefficients, setCoefficients] = useState('1, 3, -1, -3');
   const [method, setMethod] = useState<PolynomialRootMethod>('muller');
+  const [bairstowStrategy, setBairstowStrategy] = useState<Exclude<BairstowInitialStrategy, 'auto'>>('small');
   const [x0, setX0] = useState('-1.5');
   const [x1, setX1] = useState('-1.45');
   const [x2, setX2] = useState('-1.40');
@@ -372,8 +491,37 @@ export function PolynomialSection() {
 
   const autoBairstowInitial = useMemo(() => {
     if (!parsedCoefficients) return null;
-    return PolynomialMethods.estimateBairstowInitialValues(parsedCoefficients);
-  }, [parsedCoefficients]);
+    return PolynomialMethods.estimateBairstowInitialValues(parsedCoefficients, bairstowStrategy);
+  }, [bairstowStrategy, parsedCoefficients]);
+
+  const bairstowDegree = parsedCoefficients ? Math.max(parsedCoefficients.length - 1, 2) : 3;
+
+  const syncBairstowDegree = (nextDegree: number) => {
+    const safeDegree = Math.min(Math.max(Math.round(nextDegree), 2), 10);
+    const current = parsedCoefficients ?? [1, 3, -1, -3];
+    const nextLength = safeDegree + 1;
+    const next = Array.from({ length: nextLength }, (_, index) => {
+      if (current.length === nextLength && current[index] !== undefined) {
+        return current[index];
+      }
+      if (safeDegree === 3) {
+        return [1, 3, -1, -3][index] ?? 0;
+      }
+      if (index === 0) {
+        return 1;
+      }
+      return current[index + Math.max(current.length - nextLength, 0)] ?? 0;
+    });
+    setCoefficients(next.join(', '));
+  };
+
+  const handleBairstowCoefficientChange = (index: number, value: string) => {
+    const current = parsedCoefficients ?? new Array(bairstowDegree + 1).fill(0);
+    const next = current.slice();
+    const numeric = Number(value);
+    next[index] = Number.isFinite(numeric) ? numeric : 0;
+    setCoefficients(next.join(', '));
+  };
 
   useEffect(() => {
     if (method !== 'bairstow' || !autoBairstowInitial) return;
@@ -409,6 +557,7 @@ export function PolynomialSection() {
       setX2(detail.params.x2?.toString() ?? '');
       setR0(detail.params.r0?.toString() ?? '');
       setS0(detail.params.s0?.toString() ?? '');
+      setBairstowStrategy(detail.params.strategy === 'large' ? 'large' : 'small');
       setResult(detail);
     };
 
@@ -679,7 +828,7 @@ export function PolynomialSection() {
           }
           const initialR = autoBairstowInitial.r0;
           const initialS = autoBairstowInitial.s0;
-          calculatedResult = PolynomialMethods.bairstowFullRoots(coeffs, initialR, initialS, parsedTol, parsedMaxIter);
+          calculatedResult = PolynomialMethods.bairstowFullRoots(coeffs, initialR, initialS, parsedTol, parsedMaxIter, bairstowStrategy);
           setR0(initialR.toString());
           setS0(initialS.toString());
           break;
@@ -725,6 +874,7 @@ export function PolynomialSection() {
     setX2(item.params.x2?.toString() ?? x2);
     setR0(item.params.r0?.toString() ?? r0);
     setS0(item.params.s0?.toString() ?? s0);
+    setBairstowStrategy(item.params.strategy === 'large' ? 'large' : 'small');
     setResult(item);
     toast.success('Registro polinomico cargado');
   };
@@ -805,19 +955,21 @@ export function PolynomialSection() {
             <CardDescription>Define el polinomio, el método y sus datos iniciales.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-5 p-6">
-            <div className="grid gap-2">
-              <Label htmlFor="coefficients">Coeficientes</Label>
-              <textarea
-                id="coefficients"
-                value={coefficients}
-                onChange={(event) => setCoefficients(event.target.value)}
-                className="h-28 w-full rounded-xl border border-primary/10 bg-background/70 px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
-                placeholder="Ej: 1, 3, -1, -3"
-              />
-              <p className="text-xs text-muted-foreground">
-                Desde el termino de mayor grado hasta el independiente.
-              </p>
-            </div>
+            {method !== 'bairstow' && (
+              <div className="grid gap-2">
+                <Label htmlFor="coefficients">Coeficientes</Label>
+                <textarea
+                  id="coefficients"
+                  value={coefficients}
+                  onChange={(event) => setCoefficients(event.target.value)}
+                  className="h-28 w-full rounded-xl border border-primary/10 bg-background/70 px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+                  placeholder="Ej: 1, 3, -1, -3"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Desde el termino de mayor grado hasta el independiente.
+                </p>
+              </div>
+            )}
 
             <div className="grid gap-2">
               <Label htmlFor="method">Método</Label>
@@ -833,6 +985,117 @@ export function PolynomialSection() {
               </Select>
               <p className="text-xs text-muted-foreground">{methodDescription[method]}</p>
             </div>
+
+            {method === 'bairstow' && (
+              <div className="grid gap-4 rounded-[1.6rem] border border-primary/10 bg-background/35 p-5">
+                <div className="grid gap-4 md:grid-cols-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="bairstow-degree">Grado del polinomio (n)</Label>
+                    <Input
+                      id="bairstow-degree"
+                      type="number"
+                      min={2}
+                      max={10}
+                      step={1}
+                      value={bairstowDegree}
+                      onChange={(event) => syncBairstowDegree(Number(event.target.value))}
+                      className="bg-background/70"
+                    />
+                  </div>
+                  <div className="grid gap-2 md:col-span-2">
+                    <Label htmlFor="bairstow-strategy">Metodo de estimacion inicial</Label>
+                    <Select value={bairstowStrategy} onValueChange={(value) => setBairstowStrategy(value as 'small' | 'large')}>
+                      <SelectTrigger id="bairstow-strategy" className="h-12 bg-background/50 border-primary/20 focus:ring-primary text-base">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="small">Variables pequenas</SelectItem>
+                        <SelectItem value="large">Variables grandes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="coefficients">Coeficientes en texto</Label>
+                    <Input
+                      id="coefficients"
+                      value={coefficients}
+                      onChange={(event) => setCoefficients(event.target.value)}
+                      placeholder="1, 3, -1, -3"
+                      className="bg-background/70 font-mono text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-[1.3rem] border border-primary/10 bg-card/70 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-primary/70">Coeficientes del polinomio</p>
+                  <p className="mt-2 text-xs text-muted-foreground">P(x) = a_n x^n + a_(n-1) x^(n-1) + ... + a_0</p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {Array.from({ length: bairstowDegree + 1 }, (_, index) => {
+                      const exponent = bairstowDegree - index;
+                      const value = parsedCoefficients?.[index] ?? 0;
+                      return (
+                        <div key={`bairstow-coef-${exponent}`} className="rounded-2xl border border-primary/10 bg-background/70 p-3">
+                          <Label htmlFor={`bairstow-coef-${index}`} className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/70">
+                            a{exponent}
+                          </Label>
+                          <Input
+                            id={`bairstow-coef-${index}`}
+                            type="number"
+                            step="any"
+                            value={value}
+                            onChange={(event) => handleBairstowCoefficientChange(index, event.target.value)}
+                            className="mt-2 bg-background/80 font-mono"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-[1.3rem] border border-primary/10 bg-primary/5 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-primary/70">Valores iniciales calculados</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {bairstowStrategyLabel[bairstowStrategy]}: {bairstowStrategyFormula[bairstowStrategy]}
+                  </p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-2xl border border-primary/10 bg-background/70 p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">r0</p>
+                      <p className="mt-2 font-mono text-lg">{autoBairstowInitial?.r0.toFixed(8) ?? 'N/D'}</p>
+                    </div>
+                    <div className="rounded-2xl border border-primary/10 bg-background/70 p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">s0</p>
+                      <p className="mt-2 font-mono text-lg">{autoBairstowInitial?.s0.toFixed(8) ?? 'N/D'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setCoefficients('1, 3, -1, -3');
+                      setBairstowStrategy('small');
+                      setTol('0.00001');
+                      setMaxIter('15');
+                      setHistoryLabel('');
+                    }}
+                  >
+                    Cargar ejemplo
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setResult(null);
+                      setError(null);
+                    }}
+                  >
+                    Limpiar resultados
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <div className="rounded-3xl border border-primary/10 bg-background/35 p-5">
               <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/70">Esquema usado</p>
@@ -993,7 +1256,11 @@ export function PolynomialSection() {
                     <p>Tolerancia: {tol}</p>
                     <p>Iteraciones maximas: {maxIter}</p>
                     {(method === 'horner' || method === 'muller') && <p>Valores iniciales: {method === 'horner' ? x0 : `${x0}, ${x1}, ${x2}`}</p>}
-                    {method === 'bairstow' && <p>Valores iniciales: r0 = {r0}, s0 = {s0}</p>}
+                    {method === 'bairstow' && (
+                      <p>
+                        Valores iniciales: r0 = {r0}, s0 = {s0} ({bairstowStrategyLabel[(result.params.strategy === 'large' ? 'large' : 'small')]})
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1042,6 +1309,28 @@ export function PolynomialSection() {
             </Card>
           ) : null}
           <MullerIterationsTable iterations={result.iterations} />
+        </div>
+      )}
+
+      {result?.method === 'bairstow' && (
+        <div className="grid gap-4">
+          {result.bairstowFirstIteration ? (
+            <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
+              <CardHeader className="space-y-2 p-6">
+                <div className="flex items-center gap-3">
+                  <Sigma className="h-5 w-5 text-primary" />
+                  <div>
+                    <CardTitle className="text-xl font-black">Metodo de Bairstow paso a paso</CardTitle>
+                    <CardDescription>La primera iteracion se despliega completa y el resto queda resumido en la tabla.</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6">
+                <BairstowFirstIterationView detail={result.bairstowFirstIteration} />
+              </CardContent>
+            </Card>
+          ) : null}
+          <BairstowIterationsTable iterations={result.iterations} />
         </div>
       )}
 
@@ -1135,7 +1424,7 @@ export function PolynomialSection() {
       </Card>
       )}
 
-      {!isHornerView && !isMullerView && result && result.iterations.length > 0 && (
+      {!isHornerView && !isMullerView && result && result.method !== 'bairstow' && result.iterations.length > 0 && (
         <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
           <CardHeader className="space-y-2 p-6">
             <div className="flex items-center gap-3">
