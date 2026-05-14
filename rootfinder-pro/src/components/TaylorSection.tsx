@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,15 +12,6 @@ import { Sigma, FunctionSquare, Calculator, LineChart, History, Pencil, RefreshC
 import { toast } from 'sonner';
 import { buildTaylorResult, TaylorResult } from '@/lib/taylor';
 import { GeoGebraGraph } from '@/components/GeoGebraGraph';
-
-function niceStep(range: number, ticks: number) {
-  const safeRange = Math.abs(range) <= 1e-12 ? 1 : Math.abs(range);
-  const rough = safeRange / Math.max(ticks, 1);
-  const p = Math.pow(10, Math.floor(Math.log10(rough)));
-  const n = rough / p;
-  const step = (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * p;
-  return step || 1;
-}
 
 type TaylorHistoryItem = TaylorResult & {
   id: string;
@@ -40,17 +31,7 @@ export function TaylorSection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [graphZoom, setGraphZoom] = useState(1);
-  const graphRef = useRef<HTMLCanvasElement | null>(null);
-  const [graphHover, setGraphHover] = useState<{ x: number; y: number; mathX: number; mathY: number } | null>(null);
-  const graphBoundsRef = useRef<{
-    xmin: number;
-    xmax: number;
-    ymin: number;
-    spanY: number;
-    padding: number;
-    width: number;
-    height: number;
-  } | null>(null);
+  const [lastCalculatedFx, setLastCalculatedFx] = useState('exp(x)');
 
   useEffect(() => {
     try {
@@ -70,6 +51,7 @@ export function TaylorSection() {
       setOrder(detail.order.toString());
       setEvaluateAt(detail.evaluateAt.toString());
       setResult(detail);
+      setLastCalculatedFx(detail.fx);
     };
 
     window.addEventListener(LOAD_TAYLOR_HISTORY_EVENT, handleExternalLoad as EventListener);
@@ -104,199 +86,12 @@ export function TaylorSection() {
     };
   }, [graphConfig, graphZoom]);
 
-  useEffect(() => {
-    const canvas = graphRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const width = canvas.width;
-    const height = canvas.height;
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#050807';
-    ctx.fillRect(0, 0, width, height);
-
-    const { xmin, xmax } = zoomedGraphConfig;
-    const step = (xmax - xmin) / 300;
-    const samples: Array<{ x: number; fx: number; px: number }> = [];
-
-    if (!fx.trim() || !MathEvaluator.isValid(fx)) {
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '14px sans-serif';
-      ctx.fillText('Ingresa una función válida para graficar.', 28, 40);
-      return;
-    }
-
-    for (let x = xmin; x <= xmax; x += step) {
-      try {
-        const exact = MathEvaluator.evaluate(fx, x);
-        let poly = exact;
-        if (result) {
-          poly = result.terms.reduce((acc, term) => acc + term.coefficient * Math.pow(x - result.center, term.order), 0);
-        }
-        if (Number.isFinite(exact) && Number.isFinite(poly)) {
-          samples.push({ x, fx: exact, px: poly });
-        }
-      } catch {
-        // Ignore invalid samples.
-      }
-    }
-
-    if (samples.length === 0) {
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '14px sans-serif';
-      ctx.fillText('No se pudo dibujar la función en este rango.', 28, 40);
-      return;
-    }
-
-    const values = samples.flatMap((sample) => result ? [sample.fx, sample.px] : [sample.fx]);
-    const ymin = Math.min(...values);
-    const ymax = Math.max(...values);
-    const spanY = Math.max(ymax - ymin, 1);
-    const padding = 42;
-    const toPxX = (x: number) => padding + ((x - xmin) / (xmax - xmin)) * (width - padding * 2);
-    const toPxY = (y: number) => height - padding - ((y - ymin) / spanY) * (height - padding * 2);
-
-    graphBoundsRef.current = { xmin, xmax, ymin, spanY, padding, width, height };
-
-    // Rejilla con pasos "bonitos" (actualización visual, sin cambiar colores ni zoom).
-    const xStep = niceStep(xmax - xmin, 10);
-    const yStep = niceStep(spanY, 8);
-    ctx.strokeStyle = 'rgba(236, 253, 245, 0.05)';
-    ctx.lineWidth = 1;
-    for (let gx = Math.ceil(xmin / xStep) * xStep; gx <= xmax; gx += xStep) {
-      const px = toPxX(gx);
-      ctx.beginPath();
-      ctx.moveTo(px, padding);
-      ctx.lineTo(px, height - padding);
-      ctx.stroke();
-    }
-    for (let gy = Math.ceil(ymin / yStep) * yStep; gy <= ymax; gy += yStep) {
-      const py = toPxY(gy);
-      ctx.beginPath();
-      ctx.moveTo(padding, py);
-      ctx.lineTo(width - padding, py);
-      ctx.stroke();
-    }
-
-    // Ejes (si 0 está dentro del rango visible)
-    ctx.strokeStyle = 'rgba(236, 253, 245, 0.14)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    if (xmin <= 0 && xmax >= 0) {
-      const px0 = toPxX(0);
-      ctx.moveTo(px0, padding);
-      ctx.lineTo(px0, height - padding);
-    }
-    if (ymin <= 0 && ymax >= 0) {
-      const py0 = toPxY(0);
-      ctx.moveTo(padding, py0);
-      ctx.lineTo(width - padding, py0);
-    }
-    ctx.stroke();
-
-    // Etiquetas sutiles
-    ctx.fillStyle = '#94a3b8';
-    ctx.font =
-      '11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
-    ctx.textAlign = 'center';
-    const yAxisPx = ymin <= 0 && ymax >= 0 ? toPxY(0) : height - padding;
-    for (let gx = Math.ceil(xmin / xStep) * xStep; gx <= xmax; gx += xStep) {
-      if (Math.abs(gx) < 1e-10) continue;
-      const cy = Math.max(padding - 8, Math.min(height - 6, yAxisPx + 16));
-      ctx.fillText(Number(gx.toFixed(4)).toString(), toPxX(gx), cy);
-    }
-    ctx.textAlign = 'right';
-    const xAxisPx = xmin <= 0 && xmax >= 0 ? toPxX(0) : padding;
-    for (let gy = Math.ceil(ymin / yStep) * yStep; gy <= ymax; gy += yStep) {
-      if (Math.abs(gy) < 1e-10) continue;
-      const cx = Math.max(40, Math.min(width - 6, xAxisPx - 8));
-      ctx.fillText(Number(gy.toFixed(4)).toString(), cx, toPxY(gy) + 4);
-    }
-
-    ctx.strokeStyle = '#10b981';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    samples.forEach((sample, index) => {
-      const px = toPxX(sample.x);
-      const py = toPxY(sample.fx);
-      if (index === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    });
-    ctx.stroke();
-
-    if (result) {
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      samples.forEach((sample, index) => {
-        const px = toPxX(sample.x);
-        const py = toPxY(sample.px);
-        if (index === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      });
-      ctx.stroke();
-
-      const evalX = toPxX(result.evaluateAt);
-      const evalY = toPxY(result.approximation);
-      ctx.fillStyle = '#ecfdf5';
-      ctx.beginPath();
-      ctx.arc(evalX, evalY, 5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.fillStyle = '#10b981';
-    ctx.font = '12px sans-serif';
-    ctx.fillText('f(x)', padding, 20);
-    if (result) {
-      ctx.fillStyle = '#f59e0b';
-      ctx.fillText(`P${result.order}(x)`, padding + 56, 20);
-    }
-  }, [fx, result, zoomedGraphConfig]);
-
   const zoomTaylorGraph = (direction: 'in' | 'out') => {
     setGraphZoom((current) => {
       const next = direction === 'in' ? current * 1.25 : current / 1.25;
       return Math.min(Math.max(next, 0.2), 80);
     });
   };
-
-  const handleGraphMouseMove = (event: ReactMouseEvent<HTMLCanvasElement>) => {
-    const bounds = graphBoundsRef.current;
-    const canvas = event.currentTarget;
-    if (!bounds) return;
-    const rect = canvas.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-
-    // Convertimos coords DOM -> coords internas del canvas
-    const scaleX = bounds.width / rect.width;
-    const scaleY = bounds.height / rect.height;
-    const cx = (event.clientX - rect.left) * scaleX;
-    const cy = (event.clientY - rect.top) * scaleY;
-
-    const plotW = bounds.width - bounds.padding * 2;
-    const plotH = bounds.height - bounds.padding * 2;
-    const rx = (cx - bounds.padding) / plotW;
-    const ry = (cy - bounds.padding) / plotH;
-    if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx < 0 || rx > 1 || ry < 0 || ry > 1) {
-      setGraphHover(null);
-      return;
-    }
-
-    const mathX = bounds.xmin + rx * (bounds.xmax - bounds.xmin);
-    const mathY = bounds.ymin + ((bounds.height - bounds.padding - cy) / plotH) * bounds.spanY;
-    setGraphHover({ x: event.clientX - rect.left, y: event.clientY - rect.top, mathX, mathY });
-  };
-
-  const handleGraphMouseLeave = () => setGraphHover(null);
-
-  const previewResult = useMemo(() => {
-    try {
-      return buildTaylorResult(fx, center, order, evaluateAt);
-    } catch {
-      return null;
-    }
-  }, [fx, center, order, evaluateAt]);
 
   const handleCalculate = () => {
     try {
@@ -309,6 +104,7 @@ export function TaylorSection() {
         label: historyLabel.trim(),
       };
       setResult(calculation);
+      setLastCalculatedFx(fx);
       setHistory((current) => {
         const next = [historyItem, ...current].slice(0, 20);
         try {
@@ -332,6 +128,7 @@ export function TaylorSection() {
     setOrder(item.order.toString());
     setEvaluateAt(item.evaluateAt.toString());
     setResult(item);
+    setLastCalculatedFx(item.fx);
     toast.success('Registro de Taylor cargado');
   };
 
@@ -365,7 +162,7 @@ export function TaylorSection() {
     toast.success('Etiqueta actualizada');
   };
 
-  const activeResult = result ?? previewResult;
+  const activeResult = result;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -381,9 +178,9 @@ export function TaylorSection() {
             </div>
             <div className="rounded-[1.6rem] border border-primary/15 bg-background/35 p-5">
               <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Estado actual</p>
-              <p className="mt-3 text-lg font-black text-primary">{activeResult ? `P${activeResult.order}(x) listo` : 'Configurando serie'}</p>
+              <p className="mt-3 text-lg font-black text-primary">{activeResult ? `P${activeResult.order}(x) listo` : 'Pendiente de cálculo'}</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                {activeResult ? `Error relativo: ${activeResult.relativeError.toFixed(6)}%` : 'Ingresa la función y los parámetros para generar una vista previa.'}
+                {activeResult ? `Error relativo: ${activeResult.relativeError.toFixed(6)}%` : 'Termina la entrada y usa calcular para generar resultados y gráfica.'}
               </p>
             </div>
           </div>
@@ -490,7 +287,7 @@ export function TaylorSection() {
             <CardContent className="space-y-4">
               <div className="rounded-2xl border border-primary/10 bg-background/30 p-4">
                 <p className="text-[10px] uppercase font-bold tracking-[0.25em] text-primary/60">Función</p>
-                <p className="mt-2 font-mono text-sm break-words [overflow-wrap:anywhere]">{fx || 'Sin función'}</p>
+                <p className="mt-2 font-mono text-sm break-words [overflow-wrap:anywhere]">{activeResult ? lastCalculatedFx : 'Sin función calculada'}</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-2xl border border-primary/10 bg-background/30 p-4">
@@ -569,7 +366,7 @@ export function TaylorSection() {
             <div className="grid gap-4 md:grid-cols-3">
               <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
                 <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Comparación activa</p>
-                <p className="mt-3 font-mono text-sm break-words [overflow-wrap:anywhere]">{fx}</p>
+                <p className="mt-3 font-mono text-sm break-words [overflow-wrap:anywhere]">{lastCalculatedFx}</p>
                 <p className="mt-2 font-mono text-sm text-amber-400 break-words [overflow-wrap:anywhere]">{activeResult.polynomial}</p>
               </div>
               <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
@@ -588,30 +385,11 @@ export function TaylorSection() {
             </div>
           )}
           <GeoGebraGraph
-            expressions={activeResult ? [fx, activeResult.polynomial] : [fx]}
+            expressions={activeResult ? [lastCalculatedFx, activeResult.polynomial] : []}
             points={activeResult ? [{ x: activeResult.evaluateAt, y: activeResult.approximation, label: 'P_n(x)' }] : []}
             xMin={zoomedGraphConfig.xmin}
             xMax={zoomedGraphConfig.xmax}
             heightClassName="h-[28rem] lg:h-[34rem]"
-            fallback={
-              <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-black">
-                <canvas
-                  ref={graphRef}
-                  width={1200}
-                  height={460}
-                  className="h-auto w-full min-h-[20rem] lg:min-h-[28rem] cursor-crosshair"
-                  onMouseMove={handleGraphMouseMove}
-                  onMouseLeave={handleGraphMouseLeave}
-                />
-                {graphHover && (
-                  <div className="graph-tooltip" style={{ left: graphHover.x + 15, top: graphHover.y + 15 }}>
-                    <div className="font-mono font-bold text-primary-foreground/70 mb-0.5">Coordenadas</div>
-                    <div className="font-mono text-primary">x: {graphHover.mathX.toFixed(4)}</div>
-                    <div className="font-mono text-primary">y: {graphHover.mathY.toFixed(4)}</div>
-                  </div>
-                )}
-              </div>
-            }
           />
         </CardContent>
       </Card>

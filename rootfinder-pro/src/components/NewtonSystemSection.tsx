@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Download, FunctionSquare, History, LineChart, Pencil, RefreshCw, Sigma, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -11,22 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { LOAD_SYSTEM_HISTORY_EVENT, SYSTEM_HISTORY_KEY, SYSTEM_HISTORY_UPDATED_EVENT } from '@/lib/historyKeys';
 import { MathEvaluator } from '@/lib/mathEvaluator';
 import { NumericalMethods } from '@/lib/numericalMethods';
+import { GeoGebraGraph } from '@/components/GeoGebraGraph';
 import { SystemCalculationResult } from '@/types';
-
-function niceStep(range: number, ticks: number) {
-  const safeRange = Math.abs(range) <= 1e-12 ? 1 : Math.abs(range);
-  const rough = safeRange / Math.max(ticks, 1);
-  const p = Math.pow(10, Math.floor(Math.log10(rough)));
-  const n = rough / p;
-  const step = (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * p;
-  return step || 1;
-}
-
-function cssVar(name: string, fallback: string) {
-  if (typeof window === 'undefined') return fallback;
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return value || fallback;
-}
 
 type SystemHistoryItem = SystemCalculationResult & {
   id: string;
@@ -67,7 +53,6 @@ export function NewtonSystemSection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [graphZoom, setGraphZoom] = useState(1);
-  const graphRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     try {
@@ -134,143 +119,49 @@ export function NewtonSystemSection() {
     ];
   }, [result]);
 
-  useEffect(() => {
-    const canvas = graphRef.current;
-    if (!canvas) return;
+  const systemGraph = useMemo(() => {
+    const points = result?.iterations
+      .map((item) => item.vector ?? [])
+      .filter((item) => item.length >= 2)
+      .map((item, index) => ({ x: item[0], y: item[1], label: `I${index + 1}` })) ?? [];
+    const solution = solutionValues(result);
 
-    const drawGraph = () => {
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+    if (solution.length >= 2) {
+      points.push({ x: solution[0], y: solution[1], label: 'Sol' });
+    }
 
-      const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, rect.width, rect.height);
-      const background = cssVar('--color-background', '#050807');
-      const muted = cssVar('--color-muted-foreground', '#94a3b8');
-      ctx.fillStyle = background;
-      ctx.fillRect(0, 0, rect.width, rect.height);
+    if (points.length === 0) {
+      return null;
+    }
 
-      const points = result?.iterations
-        .map((item) => item.vector ?? [])
-        .filter((item) => item.length >= 2)
-        .map((item) => ({ x: item[0], y: item[1] })) ?? [];
-      const solution = solutionValues(result);
-      if (solution.length >= 2) points.push({ x: solution[0], y: solution[1] });
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const marginX = Math.max((maxX - minX) * 0.18, 0.5);
+    const marginY = Math.max((maxY - minY) * 0.18, 0.5);
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const spanX = Math.max((maxX - minX + marginX * 2) / graphZoom, 0.05);
+    const spanY = Math.max((maxY - minY + marginY * 2) / graphZoom, 0.05);
+    const pointList = points.map((point) => `(${point.x},${point.y})`).join(',');
 
-      if (points.length === 0) {
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '14px sans-serif';
-        ctx.fillText('Calcula el sistema para ver la proyeccion en las dos primeras variables.', 28, 40);
-        return;
-      }
-
-      const padding = 42;
-      const xs = points.map((point) => point.x);
-      const ys = points.map((point) => point.y);
-      let minX = Math.min(...xs);
-      let maxX = Math.max(...xs);
-      let minY = Math.min(...ys);
-      let maxY = Math.max(...ys);
-      const marginX = Math.max((maxX - minX) * 0.18, 0.5);
-      const marginY = Math.max((maxY - minY) * 0.18, 0.5);
-      minX -= marginX;
-      maxX += marginX;
-      minY -= marginY;
-      maxY += marginY;
-      const centerX = (minX + maxX) / 2;
-      const centerY = (minY + maxY) / 2;
-      const spanX = Math.max((maxX - minX) / graphZoom, 0.05);
-      const spanY = Math.max((maxY - minY) / graphZoom, 0.05);
-      minX = centerX - spanX / 2;
-      maxX = centerX + spanX / 2;
-      minY = centerY - spanY / 2;
-      maxY = centerY + spanY / 2;
-      const toPxX = (value: number) => padding + ((value - minX) / spanX) * (rect.width - padding * 2);
-      const toPxY = (value: number) => rect.height - padding - ((value - minY) / spanY) * (rect.height - padding * 2);
-
-      // Rejilla (parecida al ejemplo, pero adaptada a la vista del sistema).
-      const xStep = niceStep(spanX, 10);
-      const yStep = niceStep(spanY, 8);
-      ctx.strokeStyle = 'rgba(236, 253, 245, 0.05)';
-      ctx.lineWidth = 1;
-      for (let gx = Math.ceil(minX / xStep) * xStep; gx <= maxX; gx += xStep) {
-        const px = toPxX(gx);
-        ctx.beginPath();
-        ctx.moveTo(px, padding);
-        ctx.lineTo(px, rect.height - padding);
-        ctx.stroke();
-      }
-      for (let gy = Math.ceil(minY / yStep) * yStep; gy <= maxY; gy += yStep) {
-        const py = toPxY(gy);
-        ctx.beginPath();
-        ctx.moveTo(padding, py);
-        ctx.lineTo(rect.width - padding, py);
-        ctx.stroke();
-      }
-
-      // Ejes (si 0 cae dentro del rango)
-      ctx.strokeStyle = 'rgba(236, 253, 245, 0.14)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      if (minX <= 0 && maxX >= 0) {
-        const xAxis = toPxX(0);
-        ctx.moveTo(xAxis, padding);
-        ctx.lineTo(xAxis, rect.height - padding);
-      }
-      if (minY <= 0 && maxY >= 0) {
-        const yAxis = toPxY(0);
-        ctx.moveTo(padding, yAxis);
-        ctx.lineTo(rect.width - padding, yAxis);
-      }
-      ctx.stroke();
-
-      // Etiquetas sutiles en ejes
-      ctx.fillStyle = muted;
-      ctx.font =
-        '11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
-      ctx.textAlign = 'center';
-      const yAxisPx = minY <= 0 && maxY >= 0 ? toPxY(0) : rect.height - padding;
-      for (let gx = Math.ceil(minX / xStep) * xStep; gx <= maxX; gx += xStep) {
-        if (Math.abs(gx) < 1e-10) continue;
-        const cy = Math.max(padding - 8, Math.min(rect.height - 6, yAxisPx + 16));
-        ctx.fillText(Number(gx.toFixed(4)).toString(), toPxX(gx), cy);
-      }
-      ctx.textAlign = 'right';
-      const xAxisPx = minX <= 0 && maxX >= 0 ? toPxX(0) : padding;
-      for (let gy = Math.ceil(minY / yStep) * yStep; gy <= maxY; gy += yStep) {
-        if (Math.abs(gy) < 1e-10) continue;
-        const cx = Math.max(40, Math.min(rect.width - 6, xAxisPx - 8));
-        ctx.fillText(Number(gy.toFixed(4)).toString(), cx, toPxY(gy) + 4);
-      }
-
-      ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      points.forEach((point, index) => {
-        const px = toPxX(point.x);
-        const py = toPxY(point.y);
-        if (index === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      });
-      ctx.stroke();
-
-      points.forEach((point, index) => {
-        const px = toPxX(point.x);
-        const py = toPxY(point.y);
-        ctx.fillStyle = index === points.length - 1 ? '#f59e0b' : '#ecfdf5';
-        ctx.beginPath();
-        ctx.arc(px, py, index === points.length - 1 ? 6 : 4, 0, Math.PI * 2);
-        ctx.fill();
-      });
+    return {
+      points,
+      commands: [
+        `sysPts={${pointList}}`,
+        'sysPath=Polyline(sysPts)',
+        'SetColor(sysPath,16,185,129)',
+        'SetLineThickness(sysPath,6)',
+      ],
+      xMin: centerX - spanX / 2,
+      xMax: centerX + spanX / 2,
+      yMin: centerY - spanY / 2,
+      yMax: centerY + spanY / 2,
     };
-
-    drawGraph();
-    window.addEventListener('resize', drawGraph);
-    return () => window.removeEventListener('resize', drawGraph);
-  }, [result, graphZoom]);
+  }, [graphZoom, result]);
 
   const zoomSystemGraph = (direction: 'in' | 'out') => {
     setGraphZoom((current) => {
@@ -583,9 +474,28 @@ export function NewtonSystemSection() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="overflow-hidden rounded-2xl border border-primary/20 bg-black">
-                <canvas ref={graphRef} className="w-full min-h-[28rem] lg:min-h-[36rem]" />
-              </div>
+              {systemGraph ? (
+                <GeoGebraGraph
+                  expressions={[]}
+                  commands={systemGraph.commands}
+                  points={systemGraph.points}
+                  xMin={systemGraph.xMin}
+                  xMax={systemGraph.xMax}
+                  yMin={systemGraph.yMin}
+                  yMax={systemGraph.yMax}
+                  heightClassName="h-[28rem] lg:h-[36rem]"
+                  showAlgebraInput={false}
+                  fallback={
+                    <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+                      Cargando proyección del sistema en GeoGebra...
+                    </div>
+                  }
+                />
+              ) : (
+                <div className="flex min-h-[28rem] items-center justify-center rounded-2xl border border-primary/20 bg-black px-6 text-center text-sm text-muted-foreground lg:min-h-[36rem]">
+                  Calcula el sistema para ver la proyección en las dos primeras variables.
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

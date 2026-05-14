@@ -49,8 +49,8 @@ export function AppShell({
           onLogout={onLogout}
           counts={counts}
         />
-        <main className="min-h-[calc(100vh-56px)] min-w-0 flex-1 overflow-x-auto overflow-y-auto">
-          <div className="mx-auto w-full max-w-[1560px] px-4 py-6 lg:px-6">
+        <main className="min-h-[calc(100vh-56px)] min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="mx-auto w-full min-w-0 max-w-[1560px] overflow-x-hidden px-4 py-6 lg:px-6">
             {children}
           </div>
         </main>

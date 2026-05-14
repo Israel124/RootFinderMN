@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -37,21 +37,6 @@ import {
   POLYNOMIAL_HISTORY_UPDATED_EVENT,
 } from '@/lib/historyKeys';
 import { GeoGebraGraph } from '@/components/GeoGebraGraph';
-
-function niceStep(range: number, ticks: number) {
-  const safeRange = Math.abs(range) <= 1e-12 ? 1 : Math.abs(range);
-  const rough = safeRange / Math.max(ticks, 1);
-  const p = Math.pow(10, Math.floor(Math.log10(rough)));
-  const n = rough / p;
-  const step = (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * p;
-  return step || 1;
-}
-
-function cssVar(name: string, fallback: string) {
-  if (typeof window === 'undefined') return fallback;
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return value || fallback;
-}
 
 type PolynomialHistoryItem = PolynomialRootResult & {
   id: string;
@@ -160,7 +145,7 @@ function HornerDivisionView({ division, index }: { division: HornerSyntheticDivi
   const lineWidth = Math.max(coefficientRow.length, productRow.length, resultRow.length);
 
   return (
-    <div className="rounded-[1.5rem] border border-primary/10 bg-background/45 p-5 lg:p-7">
+    <div className="max-w-full overflow-hidden rounded-[1.5rem] border border-primary/10 bg-background/45 p-5 lg:p-7">
       <div className="space-y-3 text-center">
         <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/70">
           Division sintetica {index + 1}
@@ -175,7 +160,7 @@ function HornerDivisionView({ division, index }: { division: HornerSyntheticDivi
 
       <div className="mt-6 rounded-[1.25rem] border border-primary/10 bg-[#191c24] px-4 py-5 text-foreground">
         <p className="font-mono text-lg font-semibold">Division sintetica (x = {formatHornerNumber(division.evaluationPoint)}):</p>
-        <div className="mt-4 overflow-x-auto">
+        <div className="mt-4 max-w-full overflow-x-auto">
           <pre className="min-w-[720px] whitespace-pre font-mono text-[1.05rem] leading-10 text-foreground">
 {`${coefficientRow}
 ${productRow}
@@ -185,7 +170,7 @@ ${resultRow}`}
         </div>
       </div>
 
-      <div className="mt-6 overflow-x-auto rounded-[1.25rem] border border-primary/10 bg-background/55">
+      <div className="mt-6 max-w-full overflow-x-auto rounded-[1.25rem] border border-primary/10 bg-background/55">
         <Table className="min-w-[760px]">
           <TableHeader className="bg-white/95">
             <TableRow>
@@ -299,16 +284,16 @@ function MullerIterationsTable({ iterations }: { iterations: PolynomialRootResul
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-6">
-        <ScrollArea className="h-[min(68vh,40rem)] w-full rounded-xl border border-primary/10 bg-background/30">
-          <div className="min-w-0 overflow-x-auto">
-          <Table className="min-w-[1120px]">
+      <CardContent className="p-4 lg:p-5">
+        <div className="w-full rounded-xl border border-primary/10 bg-background/30">
+          <div className="max-h-[min(68vh,40rem)] overflow-auto">
+          <Table className="min-w-[940px] bg-white shadow-sm ring-1 ring-primary/10">
             <TableHeader className="sticky top-0 z-10 bg-white/95 border-b border-primary/20 backdrop-blur-sm">
               <TableRow>
-                <TableHead className="min-w-[96px] uppercase text-[10px] font-bold tracking-widest text-primary/70">Iteracion</TableHead>
-                <TableHead className="min-w-[240px] uppercase text-[10px] font-bold tracking-widest text-primary/70">Descripcion</TableHead>
+                <TableHead className="w-[52px] px-1.5 py-2 uppercase text-[8px] font-bold tracking-[0.12em] text-primary/70">Iter.</TableHead>
+                <TableHead className="w-[136px] px-1.5 py-2 uppercase text-[8px] font-bold tracking-[0.12em] text-primary/70">Descripcion</TableHead>
                 {visibleColumns.map((column) => (
-                  <TableHead key={column} className="min-w-[118px] uppercase text-[10px] font-bold tracking-widest text-primary/70">
+                  <TableHead key={column} className="min-w-[64px] px-1.5 py-2 uppercase text-[8px] font-bold tracking-[0.12em] text-primary/70">
                     {columnLabels[column] ?? column}
                   </TableHead>
                 ))}
@@ -317,10 +302,10 @@ function MullerIterationsTable({ iterations }: { iterations: PolynomialRootResul
             <TableBody>
               {iterations.map((iteration) => (
                 <TableRow key={iteration.iteration} className="hover:bg-primary/5 transition-colors">
-                  <TableCell className="py-5 font-mono text-sm">{iteration.iteration}</TableCell>
-                  <TableCell className="py-5 text-sm leading-6">{iteration.description}</TableCell>
+                  <TableCell className="px-1.5 py-2 font-mono text-[10px]">{iteration.iteration}</TableCell>
+                  <TableCell className="px-1.5 py-2 text-[10px] leading-5 break-words [overflow-wrap:anywhere]">{iteration.description}</TableCell>
                   {visibleColumns.map((column) => (
-                    <TableCell key={`${iteration.iteration}-${column}`} className="py-5 font-mono text-sm break-words [overflow-wrap:anywhere]">
+                    <TableCell key={`${iteration.iteration}-${column}`} className="px-1.5 py-2 font-mono text-[10px] whitespace-nowrap">
                       {iteration.values[column]}
                     </TableCell>
                   ))}
@@ -329,7 +314,7 @@ function MullerIterationsTable({ iterations }: { iterations: PolynomialRootResul
             </TableBody>
           </Table>
           </div>
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   );
@@ -403,16 +388,16 @@ function BairstowIterationsTable({ iterations }: { iterations: PolynomialRootRes
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-6">
-        <ScrollArea className="h-[min(68vh,40rem)] w-full rounded-xl border border-primary/10 bg-background/30">
-          <div className="min-w-0 overflow-x-auto">
-            <Table className="min-w-[1180px]">
+      <CardContent className="p-4 lg:p-5">
+        <div className="w-full rounded-xl border border-primary/10 bg-background/30">
+          <div className="max-h-[min(68vh,40rem)] overflow-auto">
+            <Table className="min-w-[940px] bg-white shadow-sm ring-1 ring-primary/10">
               <TableHeader className="sticky top-0 z-10 bg-white/95 border-b border-primary/20 backdrop-blur-sm">
                 <TableRow>
-                  <TableHead className="min-w-[96px] uppercase text-[10px] font-bold tracking-widest text-primary/70">Iteracion</TableHead>
-                  <TableHead className="min-w-[240px] uppercase text-[10px] font-bold tracking-widest text-primary/70">Descripcion</TableHead>
+                  <TableHead className="w-[52px] px-1.5 py-2 uppercase text-[8px] font-bold tracking-[0.12em] text-primary/70">Iter.</TableHead>
+                  <TableHead className="w-[136px] px-1.5 py-2 uppercase text-[8px] font-bold tracking-[0.12em] text-primary/70">Descripcion</TableHead>
                   {visibleColumns.map((column) => (
-                    <TableHead key={column} className="min-w-[118px] uppercase text-[10px] font-bold tracking-widest text-primary/70">
+                    <TableHead key={column} className="min-w-[64px] px-1.5 py-2 uppercase text-[8px] font-bold tracking-[0.12em] text-primary/70">
                       {columnLabels[column] ?? column}
                     </TableHead>
                   ))}
@@ -421,10 +406,10 @@ function BairstowIterationsTable({ iterations }: { iterations: PolynomialRootRes
               <TableBody>
                 {iterations.map((iteration) => (
                   <TableRow key={iteration.iteration} className="hover:bg-primary/5 transition-colors">
-                    <TableCell className="py-5 font-mono text-sm">{iteration.iteration}</TableCell>
-                    <TableCell className="py-5 text-sm leading-6">{iteration.description}</TableCell>
+                    <TableCell className="px-1.5 py-2 font-mono text-[10px]">{iteration.iteration}</TableCell>
+                    <TableCell className="px-1.5 py-2 text-[10px] leading-5 break-words [overflow-wrap:anywhere]">{iteration.description}</TableCell>
                     {visibleColumns.map((column) => (
-                      <TableCell key={`${iteration.iteration}-${column}`} className="py-5 font-mono text-sm break-words [overflow-wrap:anywhere]">
+                      <TableCell key={`${iteration.iteration}-${column}`} className="px-1.5 py-2 font-mono text-[10px] whitespace-nowrap">
                         {iteration.values[column]}
                       </TableCell>
                     ))}
@@ -433,7 +418,7 @@ function BairstowIterationsTable({ iterations }: { iterations: PolynomialRootRes
               </TableBody>
             </Table>
           </div>
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   );
@@ -475,9 +460,7 @@ export function PolynomialSection() {
   const [editingValue, setEditingValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [graphZoom, setGraphZoom] = useState(1);
-  const graphRef = useRef<HTMLCanvasElement | null>(null);
-  const [graphHover, setGraphHover] = useState<{ x: number; y: number; mathX: number; mathY: number } | null>(null);
-  const graphBoundsRef = useRef<{ xmin: number; xmax: number; ymin: number; ymax: number; padding: number } | null>(null);
+  const [lastCalculatedCoefficients, setLastCalculatedCoefficients] = useState<number[] | null>(null);
   const isHornerView = method === 'horner' || result?.method === 'horner';
   const isMullerView = method === 'muller' || result?.method === 'muller';
 
@@ -559,6 +542,11 @@ export function PolynomialSection() {
       setS0(detail.params.s0?.toString() ?? '');
       setBairstowStrategy(detail.params.strategy === 'large' ? 'large' : 'small');
       setResult(detail);
+      try {
+        setLastCalculatedCoefficients(PolynomialMethods.parseCoefficients(detail.coefficientsText));
+      } catch {
+        setLastCalculatedCoefficients(null);
+      }
     };
 
     window.addEventListener(LOAD_POLYNOMIAL_HISTORY_EVENT, handleExternalLoad as EventListener);
@@ -575,18 +563,18 @@ export function PolynomialSection() {
   }, [history]);
 
   const activeGraphData = useMemo(() => {
-    if (!parsedCoefficients) return null;
+    if (!result || !lastCalculatedCoefficients) return null;
 
-    const markers = result?.graphMarkers ?? [];
-    const realRoots = result?.realRoots ?? [];
+    const markers = result.graphMarkers ?? [];
+    const realRoots = result.realRoots ?? [];
     return {
-      coeffs: parsedCoefficients,
+      coeffs: lastCalculatedCoefficients,
       markers,
       realRoots,
-      polynomialExpression: result?.polynomialExpression ?? PolynomialMethods.polynomialToExpression(parsedCoefficients),
-      hiddenComplexRoots: result?.hiddenComplexRoots ?? [],
+      polynomialExpression: result.polynomialExpression,
+      hiddenComplexRoots: result.hiddenComplexRoots ?? [],
     };
-  }, [parsedCoefficients, result]);
+  }, [lastCalculatedCoefficients, result]);
 
   const polynomialGraphRange = useMemo(() => {
     if (!activeGraphData) return null;
@@ -627,160 +615,6 @@ export function PolynomialSection() {
       ymax: centerY + spanY / 2,
     };
   }, [polynomialGraphRange, graphZoom]);
-
-  useEffect(() => {
-    const canvas = graphRef.current;
-    if (!canvas || !activeGraphData) return;
-
-    const drawGraph = () => {
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      const width = Math.round(rect.width * dpr);
-      const height = Math.round(rect.height * dpr);
-
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
-      }
-
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, rect.width, rect.height);
-      const muted = cssVar('--color-muted-foreground', '#94a3b8');
-      const background = cssVar('--color-background', '#050807');
-      ctx.fillStyle = background;
-      ctx.fillRect(0, 0, rect.width, rect.height);
-
-      const { coeffs, markers } = activeGraphData;
-      const range = zoomedPolynomialGraphRange;
-      if (!range) return;
-      const { xmin, xmax, ymin, ymax } = range;
-      const padding = 42;
-      graphBoundsRef.current = { xmin, xmax, ymin, ymax, padding };
-      const step = (xmax - xmin) / 500;
-      const samples: Array<{ x: number; y: number }> = [];
-
-      for (let x = xmin; x <= xmax; x += step) {
-        const y = PolynomialMethods.evaluatePolynomial(coeffs, x);
-        if (Number.isFinite(y)) {
-          samples.push({ x, y });
-        }
-      }
-
-      if (samples.length === 0) {
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '14px sans-serif';
-        ctx.fillText('No se pudo dibujar el polinomio en este rango.', 28, 40);
-        return;
-      }
-
-      const toPxX = (value: number) => padding + ((value - xmin) / (xmax - xmin)) * (rect.width - padding * 2);
-      const toPxY = (value: number) => rect.height - padding - ((value - ymin) / (ymax - ymin)) * (rect.height - padding * 2);
-
-      // Rejilla con pasos "bonitos" (parecida al ejemplo, pero no idéntica).
-      const xStep = niceStep(xmax - xmin, 10);
-      const yStep = niceStep(ymax - ymin, 8);
-      ctx.strokeStyle = 'rgba(236, 253, 245, 0.05)';
-      ctx.lineWidth = 1;
-      for (let gx = Math.ceil(xmin / xStep) * xStep; gx <= xmax; gx += xStep) {
-        const px = toPxX(gx);
-        ctx.beginPath();
-        ctx.moveTo(px, padding);
-        ctx.lineTo(px, rect.height - padding);
-        ctx.stroke();
-      }
-      for (let gy = Math.ceil(ymin / yStep) * yStep; gy <= ymax; gy += yStep) {
-        const py = toPxY(gy);
-        ctx.beginPath();
-        ctx.moveTo(padding, py);
-        ctx.lineTo(rect.width - padding, py);
-        ctx.stroke();
-      }
-
-      const yAxisX = 0 >= xmin && 0 <= xmax ? toPxX(0) : padding;
-      const xAxisY = 0 >= ymin && 0 <= ymax ? toPxY(0) : rect.height - padding;
-      ctx.strokeStyle = 'rgba(236, 253, 245, 0.14)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(padding, xAxisY);
-      ctx.lineTo(rect.width - padding, xAxisY);
-      ctx.moveTo(yAxisX, padding);
-      ctx.lineTo(yAxisX, rect.height - padding);
-      ctx.stroke();
-
-      // Etiquetas de ejes (sutiles)
-      ctx.fillStyle = muted;
-      ctx.font =
-        '11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
-      ctx.textAlign = 'center';
-      for (let gx = Math.ceil(xmin / xStep) * xStep; gx <= xmax; gx += xStep) {
-        if (Math.abs(gx) < 1e-10) continue;
-        const cy = Math.max(padding - 8, Math.min(rect.height - 6, xAxisY + 16));
-        ctx.fillText(Number(gx.toFixed(4)).toString(), toPxX(gx), cy);
-      }
-      ctx.textAlign = 'right';
-      for (let gy = Math.ceil(ymin / yStep) * yStep; gy <= ymax; gy += yStep) {
-        if (Math.abs(gy) < 1e-10) continue;
-        const cx = Math.max(40, Math.min(rect.width - 6, yAxisX - 8));
-        ctx.fillText(Number(gy.toFixed(4)).toString(), cx, toPxY(gy) + 4);
-      }
-
-      ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      samples.forEach((sample, index) => {
-        const px = toPxX(sample.x);
-        const py = toPxY(sample.y);
-        if (index === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      });
-      ctx.stroke();
-
-      for (const marker of markers) {
-        const px = toPxX(marker.x);
-        const py = toPxY(marker.y);
-        ctx.fillStyle =
-          marker.tone === 'root' ? '#f59e0b' : marker.tone === 'seed' ? '#22d3ee' : '#ecfdf5';
-        ctx.beginPath();
-        ctx.arc(px, py, marker.tone === 'root' ? 6 : 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#cbd5e1';
-        ctx.font = '12px sans-serif';
-        ctx.fillText(marker.label, px + 8, py - 8);
-      }
-
-      ctx.fillStyle = '#10b981';
-      ctx.font = '12px sans-serif';
-      ctx.fillText('P(x)', padding, 20);
-    };
-
-    drawGraph();
-    window.addEventListener('resize', drawGraph);
-    return () => window.removeEventListener('resize', drawGraph);
-  }, [activeGraphData, zoomedPolynomialGraphRange]);
-
-  const handleGraphMouseMove = (event: ReactMouseEvent<HTMLCanvasElement>) => {
-    const bounds = graphBoundsRef.current;
-    if (!bounds) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const plotW = rect.width - bounds.padding * 2;
-    const plotH = rect.height - bounds.padding * 2;
-    const rx = (x - bounds.padding) / plotW;
-    const ry = (y - bounds.padding) / plotH;
-    if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx < 0 || rx > 1 || ry < 0 || ry > 1) {
-      setGraphHover(null);
-      return;
-    }
-    const mathX = bounds.xmin + rx * (bounds.xmax - bounds.xmin);
-    const mathY = bounds.ymin + ((rect.height - bounds.padding - y) / plotH) * (bounds.ymax - bounds.ymin);
-    setGraphHover({ x, y, mathX, mathY });
-  };
-
-  const handleGraphMouseLeave = () => setGraphHover(null);
 
   const zoomPolynomialGraph = (direction: 'in' | 'out') => {
     setGraphZoom((current) => {
@@ -838,6 +672,7 @@ export function PolynomialSection() {
       }
 
       setResult(calculatedResult);
+      setLastCalculatedCoefficients(coeffs);
       setError(null);
 
       setHistory((current) => [
@@ -876,6 +711,11 @@ export function PolynomialSection() {
     setS0(item.params.s0?.toString() ?? s0);
     setBairstowStrategy(item.params.strategy === 'large' ? 'large' : 'small');
     setResult(item);
+    try {
+      setLastCalculatedCoefficients(PolynomialMethods.parseCoefficients(item.coefficientsText));
+    } catch {
+      setLastCalculatedCoefficients(null);
+    }
     toast.success('Registro polinomico cargado');
   };
 
@@ -910,7 +750,7 @@ export function PolynomialSection() {
   };
 
   return (
-    <section className="grid min-w-0 gap-6">
+    <section className="grid min-w-0 max-w-full gap-6 overflow-x-hidden">
       <div className="rounded-[2rem] border border-primary/10 bg-linear-to-br from-primary/10 via-card/70 to-card/70 p-8 shadow-2xl backdrop-blur-xl">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-4xl">
@@ -929,7 +769,7 @@ export function PolynomialSection() {
           </div>
         </div>
 
-        <div className="mt-8 grid gap-3 md:grid-cols-3">
+        <div className="mt-8 grid gap-3 lg:grid-cols-3">
           <div className="rounded-[1.5rem] border border-primary/10 bg-background/30 p-4">
             <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Paso 1</p>
             <p className="mt-3 text-lg font-bold">Define el polinomio</p>
@@ -948,8 +788,8 @@ export function PolynomialSection() {
         </div>
       </div>
 
-      <div className={isHornerView || isMullerView ? 'grid min-w-0 gap-4 xl:grid-cols-1' : 'grid min-w-0 gap-4 xl:grid-cols-[1.55fr_0.95fr]'}>
-        <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
+      <div className="grid min-w-0 max-w-full gap-4">
+        <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10 overflow-hidden">
           <CardHeader className="space-y-2 p-6">
             <CardTitle className="text-xl font-black">Configuracion polinomica</CardTitle>
             <CardDescription>Define el polinomio, el método y sus datos iniciales.</CardDescription>
@@ -988,7 +828,7 @@ export function PolynomialSection() {
 
             {method === 'bairstow' && (
               <div className="grid gap-4 rounded-[1.6rem] border border-primary/10 bg-background/35 p-5">
-                <div className="grid gap-4 md:grid-cols-4">
+                <div className="grid gap-4 xl:grid-cols-4">
                   <div className="grid gap-2">
                     <Label htmlFor="bairstow-degree">Grado del polinomio (n)</Label>
                     <Input
@@ -1002,7 +842,7 @@ export function PolynomialSection() {
                       className="bg-background/70"
                     />
                   </div>
-                  <div className="grid gap-2 md:col-span-2">
+                  <div className="grid gap-2 xl:col-span-2">
                     <Label htmlFor="bairstow-strategy">Metodo de estimacion inicial</Label>
                     <Select value={bairstowStrategy} onValueChange={(value) => setBairstowStrategy(value as 'small' | 'large')}>
                       <SelectTrigger id="bairstow-strategy" className="h-12 bg-background/50 border-primary/20 focus:ring-primary text-base">
@@ -1029,7 +869,7 @@ export function PolynomialSection() {
                 <div className="rounded-[1.3rem] border border-primary/10 bg-card/70 p-4">
                   <p className="text-xs font-bold uppercase tracking-[0.22em] text-primary/70">Coeficientes del polinomio</p>
                   <p className="mt-2 text-xs text-muted-foreground">P(x) = a_n x^n + a_(n-1) x^(n-1) + ... + a_0</p>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
                     {Array.from({ length: bairstowDegree + 1 }, (_, index) => {
                       const exponent = bairstowDegree - index;
                       const value = parsedCoefficients?.[index] ?? 0;
@@ -1057,7 +897,7 @@ export function PolynomialSection() {
                   <p className="mt-2 text-sm text-muted-foreground">
                     {bairstowStrategyLabel[bairstowStrategy]}: {bairstowStrategyFormula[bairstowStrategy]}
                   </p>
-                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
                     <div className="rounded-2xl border border-primary/10 bg-background/70 p-4">
                       <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">r0</p>
                       <p className="mt-2 font-mono text-lg">{autoBairstowInitial?.r0.toFixed(8) ?? 'N/D'}</p>
@@ -1108,7 +948,7 @@ export function PolynomialSection() {
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
               <div className="rounded-2xl border border-primary/10 bg-background/30 p-4">
                 <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Grado</p>
                 <p className="mt-3 text-2xl font-black">{parsedCoefficients ? parsedCoefficients.length - 1 : 'N/D'}</p>
@@ -1137,7 +977,7 @@ export function PolynomialSection() {
             )}
 
             {method === 'muller' && (
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
                 <div className="grid gap-2">
                   <Label htmlFor="x0">x0</Label>
                   <Input id="x0" value={x0} onChange={(event) => setX0(event.target.value)} placeholder="-1.5" className="bg-background/70" />
@@ -1166,7 +1006,7 @@ export function PolynomialSection() {
               </div>
             )}
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
               <div className="grid gap-2">
                 <Label htmlFor="tol">Tolerancia</Label>
                 <Input id="tol" value={tol} onChange={(event) => setTol(event.target.value)} placeholder="0.0001" className="bg-background/70" />
@@ -1194,7 +1034,7 @@ export function PolynomialSection() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
+        <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10 overflow-hidden">
           <CardHeader className="space-y-2 p-6">
             <CardTitle className="text-xl font-black">Resumen del método</CardTitle>
             <CardDescription>Estado del cálculo y parámetros usados.</CardDescription>
@@ -1216,7 +1056,7 @@ export function PolynomialSection() {
                   <p className="text-sm text-muted-foreground">Convergencia: {result.converged ? 'Si' : 'No'}</p>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-2">
                   <div className="rounded-2xl border border-primary/10 bg-background/70 p-4">
                     <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Raíces listadas</p>
                     <p className="mt-3 text-2xl font-black">{result.roots.length}</p>
@@ -1335,7 +1175,7 @@ export function PolynomialSection() {
       )}
 
       {!isHornerView && !isMullerView && (
-      <Card className="rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
+      <Card className="min-w-0 overflow-hidden rounded-[1.8rem] border border-primary/10 bg-card/60 shadow-xl shadow-primary/10">
         <CardHeader className="space-y-2 p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -1358,9 +1198,9 @@ export function PolynomialSection() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4 p-6">
+        <CardContent className="min-w-0 space-y-4 overflow-hidden p-6">
           {result && (
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 lg:grid-cols-3">
               <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
                 <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary/60">Curva activa</p>
                 <p className="mt-3 font-mono text-sm break-words [overflow-wrap:anywhere]">
@@ -1389,25 +1229,6 @@ export function PolynomialSection() {
             yMin={zoomedPolynomialGraphRange?.ymin}
             yMax={zoomedPolynomialGraphRange?.ymax}
             heightClassName="h-[28rem] lg:h-[34rem]"
-            fallback={
-              <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-black">
-                <canvas
-                  ref={graphRef}
-                  width={1200}
-                  height={460}
-                  className="h-auto w-full min-h-[20rem] lg:min-h-[28rem] cursor-crosshair"
-                  onMouseMove={handleGraphMouseMove}
-                  onMouseLeave={handleGraphMouseLeave}
-                />
-                {graphHover && (
-                  <div className="graph-tooltip" style={{ left: graphHover.x + 15, top: graphHover.y + 15 }}>
-                    <div className="font-mono font-bold text-primary-foreground/70 mb-0.5">Coordenadas</div>
-                    <div className="font-mono text-primary">x: {graphHover.mathX.toFixed(4)}</div>
-                    <div className="font-mono text-primary">y: {graphHover.mathY.toFixed(4)}</div>
-                  </div>
-                )}
-              </div>
-            }
           />
           <div className="flex flex-wrap gap-2 text-xs">
             <Badge className="bg-primary text-primary-foreground">P(x)</Badge>
@@ -1435,16 +1256,16 @@ export function PolynomialSection() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-6">
-            <ScrollArea className="h-[min(66vh,38rem)] w-full rounded-xl border border-primary/10 bg-background/30">
-              <div className="min-w-0 overflow-x-auto">
-              <Table className="min-w-[1080px]">
+          <CardContent className="p-4 lg:p-5">
+            <div className="w-full rounded-xl border border-primary/10 bg-background/30">
+              <div className="max-h-[min(66vh,38rem)] overflow-auto">
+              <Table className="min-w-[920px] bg-white shadow-sm ring-1 ring-primary/10">
                 <TableHeader className="sticky top-0 bg-white/95 z-10 border-b border-primary/20 backdrop-blur-sm">
                   <TableRow>
-                    <TableHead className="uppercase text-[10px] font-bold tracking-widest text-primary/70">Iteracion</TableHead>
-                    <TableHead className="uppercase text-[10px] font-bold tracking-widest text-primary/70">Descripcion</TableHead>
+                    <TableHead className="w-[52px] px-1.5 py-2 uppercase text-[8px] font-bold tracking-[0.12em] text-primary/70">Iter.</TableHead>
+                    <TableHead className="w-[136px] px-1.5 py-2 uppercase text-[8px] font-bold tracking-[0.12em] text-primary/70">Descripcion</TableHead>
                     {Object.keys(result.iterations[0].values).map((column) => (
-                      <TableHead key={column} className="uppercase text-[10px] font-bold tracking-widest text-primary/70">
+                      <TableHead key={column} className="min-w-[64px] px-1.5 py-2 uppercase text-[8px] font-bold tracking-[0.12em] text-primary/70">
                         {column}
                       </TableHead>
                     ))}
@@ -1453,10 +1274,10 @@ export function PolynomialSection() {
                 <TableBody>
                   {result.iterations.map((iteration) => (
                     <TableRow key={iteration.iteration} className="hover:bg-primary/5 transition-colors">
-                      <TableCell className="font-mono text-xs py-3">{iteration.iteration}</TableCell>
-                      <TableCell className="text-xs py-3 min-w-[220px]">{iteration.description}</TableCell>
+                      <TableCell className="px-1.5 py-2 font-mono text-[10px]">{iteration.iteration}</TableCell>
+                      <TableCell className="px-1.5 py-2 text-[10px] leading-5 break-words [overflow-wrap:anywhere]">{iteration.description}</TableCell>
                       {Object.keys(result.iterations[0].values).map((column) => (
-                        <TableCell key={`${iteration.iteration}-${column}`} className="font-mono text-xs py-3 break-words [overflow-wrap:anywhere]">
+                        <TableCell key={`${iteration.iteration}-${column}`} className="px-1.5 py-2 font-mono text-[10px] whitespace-nowrap">
                           {iteration.values[column]}
                         </TableCell>
                       ))}
@@ -1465,7 +1286,7 @@ export function PolynomialSection() {
                 </TableBody>
               </Table>
               </div>
-            </ScrollArea>
+            </div>
           </CardContent>
         </Card>
       )}

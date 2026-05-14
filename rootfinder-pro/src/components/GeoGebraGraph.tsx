@@ -15,6 +15,7 @@ type HoverCoords = {
 
 interface GeoGebraGraphProps {
   expressions: string[];
+  commands?: string[];
   points?: GeoGebraPoint[];
   xMin?: number;
   xMax?: number;
@@ -22,6 +23,7 @@ interface GeoGebraGraphProps {
   yMax?: number;
   heightClassName?: string;
   fallback?: ReactNode;
+  showAlgebraInput?: boolean;
 }
 
 declare global {
@@ -30,31 +32,26 @@ declare global {
   }
 }
 
-const GEOGEBRA_SCRIPT_ID = 'geogebra-deploy-script';
+type GeoGebraApi = {
+  evalCommand: (command: string) => void;
+  setCoordSystem?: (...args: number[]) => void;
+  setPerspective?: (perspective: string) => void;
+  setAxesVisible?: (xVisible: boolean, yVisible: boolean) => void;
+  enableRightClick?: (enabled: boolean) => void;
+  enableLabelDrags?: (enabled: boolean) => void;
+  enableShiftDragZoom?: (enabled: boolean) => void;
+  reset?: () => void;
+};
 
-function loadGeoGebraScript() {
-  return new Promise<void>((resolve, reject) => {
-    if (window.GGBApplet) {
-      resolve();
-      return;
-    }
-
-    const existing = document.getElementById(GEOGEBRA_SCRIPT_ID) as HTMLScriptElement | null;
-    if (existing) {
-      existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener('error', () => reject(new Error('No se pudo cargar GeoGebra')), { once: true });
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.id = GEOGEBRA_SCRIPT_ID;
-    script.src = 'https://www.geogebra.org/apps/deployggb.js';
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('No se pudo cargar GeoGebra'));
-    document.head.appendChild(script);
-  });
-}
+type GeoGebraMathAppsModule = {
+  mathApps: {
+    create: (params: Record<string, unknown>) => {
+      inject: (target: Element | string) => {
+        getAPI: () => Promise<GeoGebraApi>;
+      };
+    };
+  };
+};
 
 function normalizeForGeoGebra(expression: string) {
   return expression
@@ -75,6 +72,7 @@ function safeObjectName(prefix: string, index: number) {
 
 export function GeoGebraGraph({
   expressions,
+  commands: extraCommands = [],
   points = [],
   xMin = -10,
   xMax = 10,
@@ -82,14 +80,24 @@ export function GeoGebraGraph({
   yMax = 10,
   heightClassName = 'h-[28rem]',
   fallback,
+  showAlgebraInput = false,
 }: GeoGebraGraphProps) {
   const containerIdRef = useRef(`geogebra-${crypto.randomUUID()}`);
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const apiRef = useRef<GeoGebraApi | null>(null);
+  const initializedRef = useRef(false);
+  const previousObjectNamesRef = useRef<string[]>([]);
+  const lastSyncedSignatureRef = useRef('');
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [slowLoading, setSlowLoading] = useState(false);
   const [hover, setHover] = useState<HoverCoords | null>(null);
   const enableHoverTooltip = !fallback;
+  const expressionsKey = JSON.stringify(expressions);
+  const pointsKey = JSON.stringify(points);
+  const extraCommandsKey = JSON.stringify(extraCommands);
 
-  const commands = useMemo(() => {
+  const graphCommands = useMemo(() => {
     const expressionCommands = expressions
       .map(normalizeForGeoGebra)
       .filter(Boolean)
@@ -107,55 +115,196 @@ export function GeoGebraGraph({
       })
       .flat();
 
-    return [...expressionCommands, ...pointCommands];
-  }, [expressions, points]);
+    return [...expressionCommands, ...pointCommands, ...extraCommands.filter(Boolean)];
+  }, [expressions, extraCommands, points, expressionsKey, extraCommandsKey, pointsKey]);
+
+  const objectNames = useMemo(() => {
+    const expressionNames = expressions
+      .map(normalizeForGeoGebra)
+      .filter(Boolean)
+      .map((_, index) => safeObjectName('f', index));
+
+    const pointNames = points
+      .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+      .map((_, index) => safeObjectName('P', index));
+
+    return [...expressionNames, ...pointNames];
+  }, [expressions, points, expressionsKey, pointsKey]);
+
+  const drawableSignature = useMemo(
+    () => JSON.stringify({
+      graphCommands,
+      objectNames,
+      xMin,
+      xMax,
+      yMin,
+      yMax,
+    }),
+    [graphCommands, objectNames, xMax, xMin, yMax, yMin],
+  );
+  const hasDrawableContent = graphCommands.length > 0;
+
+  const applyViewport = (api: GeoGebraApi) => {
+    api.setPerspective?.('G');
+    api.setAxesVisible?.(true, true);
+    api.enableRightClick?.(false);
+    api.enableLabelDrags?.(false);
+    api.enableShiftDragZoom?.(true);
+    api.setCoordSystem?.(xMin, xMax, yMin, yMax);
+  };
+
+  const syncCommands = (api: GeoGebraApi) => {
+    api.reset?.();
+
+    graphCommands.forEach((command) => api.evalCommand(command));
+    previousObjectNamesRef.current = objectNames;
+    applyViewport(api);
+  };
 
   useEffect(() => {
-    if (fallback) return;
     let cancelled = false;
+    if (!hasDrawableContent) return;
+    if (initializedRef.current || apiRef.current) return;
+
     setFailed(false);
     setLoaded(false);
+    setSlowLoading(false);
     const timeout = window.setTimeout(() => {
-      if (!window.GGBApplet) {
-        setFailed(true);
+      if (!cancelled) {
+        setSlowLoading(true);
       }
-    }, 7000);
+    }, 2500);
 
-    loadGeoGebraScript()
-      .then(() => {
-        window.clearTimeout(timeout);
-        if (cancelled || !window.GGBApplet) return;
+    const finalizeLoad = (api: GeoGebraApi) => {
+      apiRef.current = api;
+      initializedRef.current = true;
+      window.clearTimeout(timeout);
+      syncCommands(api);
+      lastSyncedSignatureRef.current = drawableSignature;
+      setSlowLoading(false);
+      setFailed(false);
+      setLoaded(true);
+    };
 
-        const parameters = {
-          appName: 'graphing',
-          width: 1200,
-          height: 520,
-          showToolBar: false,
-          showMenuBar: false,
-          showAlgebraInput: true,
-          showZoomButtons: true,
-          enableShiftDragZoom: true,
-          errorDialogsActive: false,
-          language: 'es',
-          appletOnLoad: (api: { evalCommand: (command: string) => void; setCoordSystem?: (...args: number[]) => void }) => {
-            commands.forEach((command) => api.evalCommand(command));
-            api.setCoordSystem?.(xMin, xMax, yMin, yMax);
-            setLoaded(true);
-          },
+    const loadViaModule = async () => {
+      const target = hostRef.current;
+      if (!target) throw new Error('No se encontro el contenedor de GeoGebra');
+
+      const rect = target.getBoundingClientRect();
+      const width = Math.max(Math.round(rect.width || target.clientWidth || 640), 320);
+      const height = Math.max(Math.round(rect.height || target.clientHeight || 448), 320);
+
+      const moduleUrl = 'https://www.geogebra.org/apps/latest/web3d/web3d.nocache.mjs';
+      const module = await import(/* @vite-ignore */ moduleUrl) as GeoGebraMathAppsModule;
+      const injected = module.mathApps.create({
+        appName: 'graphing',
+        width,
+        height,
+        showToolBar: false,
+        showMenuBar: false,
+        showAlgebraView: false,
+        showAlgebraInput,
+        showDockBar: false,
+        showZoomButtons: true,
+        showSuggestionButtons: false,
+        showKeyboardOnFocus: false,
+        allowStyleBar: false,
+        showResetIcon: false,
+        enableCAS: false,
+        enable3d: false,
+        borderColor: '#000000',
+        language: 'es',
+      }).inject(target);
+
+      const api = await injected.getAPI();
+      if (cancelled) return;
+      finalizeLoad(api);
+    };
+
+    const loadViaDeployScript = async () => {
+      await new Promise<void>((resolve, reject) => {
+        const checkReady = () => {
+          if (window.GGBApplet) {
+            resolve();
+            return true;
+          }
+          return false;
         };
 
-        new window.GGBApplet(parameters, true).inject(containerIdRef.current);
-      })
+        if (checkReady()) return;
+
+        const existing = document.querySelector('script[src="https://www.geogebra.org/apps/deployggb.js"]') as HTMLScriptElement | null;
+        if (existing) {
+          existing.addEventListener('load', () => resolve(), { once: true });
+          existing.addEventListener('error', () => reject(new Error('No se pudo cargar deployggb.js')), { once: true });
+          return;
+        }
+
+        reject(new Error('deployggb.js no disponible'));
+      });
+
+      if (cancelled || !window.GGBApplet) return;
+
+      const parameters = {
+        id: containerIdRef.current,
+        appName: 'graphing',
+        width: Math.max(Math.round(hostRef.current?.clientWidth || 640), 320),
+        height: Math.max(Math.round(hostRef.current?.clientHeight || 448), 320),
+        showToolBar: false,
+        showMenuBar: false,
+        showAlgebraView: false,
+        showAlgebraInput,
+        showDockBar: false,
+        showZoomButtons: true,
+        showSuggestionButtons: false,
+        showKeyboardOnFocus: false,
+        allowStyleBar: false,
+        showResetIcon: false,
+        enableCAS: false,
+        enable3d: false,
+        enableShiftDragZoom: true,
+        errorDialogsActive: false,
+        language: 'es',
+        appletOnLoad: (api: GeoGebraApi) => {
+          if (cancelled) return;
+          finalizeLoad(api);
+        },
+      };
+
+      new window.GGBApplet(parameters, true).inject(containerIdRef.current);
+    };
+
+    loadViaModule()
+      .catch(() => loadViaDeployScript())
       .catch(() => {
+        if (cancelled) return;
         window.clearTimeout(timeout);
         setFailed(true);
+        setSlowLoading(false);
       });
 
     return () => {
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [commands, fallback, xMax, xMin, yMax, yMin]);
+  }, [hasDrawableContent, showAlgebraInput]);
+
+  useEffect(() => {
+    if (!apiRef.current || !loaded || !hasDrawableContent) return;
+    if (lastSyncedSignatureRef.current === drawableSignature) return;
+    syncCommands(apiRef.current);
+    lastSyncedSignatureRef.current = drawableSignature;
+  }, [drawableSignature, hasDrawableContent, loaded]);
+
+  if (!hasDrawableContent) {
+    return (
+      <div className={`relative w-full overflow-hidden rounded-2xl border border-primary/20 bg-black ${heightClassName}`}>
+        <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+          La gráfica se generará cuando ejecutes el cálculo.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -173,7 +322,8 @@ export function GeoGebraGraph({
     >
       <div
         id={containerIdRef.current}
-        className="absolute inset-0 h-full w-full text-sm text-muted-foreground"
+        ref={hostRef}
+        className="geogebra-host absolute inset-0 h-full w-full text-sm text-muted-foreground"
       />
       {enableHoverTooltip && hover && (
         <div className="graph-tooltip" style={{ left: hover.x + 15, top: hover.y + 15 }}>
@@ -182,11 +332,17 @@ export function GeoGebraGraph({
           <div className="font-mono text-primary">y: {hover.mathY.toFixed(4)}</div>
         </div>
       )}
-      {(!loaded || failed) && (
-        <div className="absolute inset-0 bg-black">
-          {fallback ?? (
+      {!loaded && (
+        <div className="absolute inset-0 bg-black/92">
+          {failed ? (
             <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-              GeoGebra esta cargando. Si no aparece, revisa tu conexion a internet.
+              No se pudo cargar GeoGebra. Revisa tu conexion e intenta de nuevo.
+            </div>
+          ) : slowLoading && fallback ? (
+            fallback
+          ) : (
+            <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+              Cargando GeoGebra...
             </div>
           )}
         </div>

@@ -5,23 +5,14 @@ const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
-  <div
+  <table
+    ref={ref}
     className={cn(
-      // Requisito: tablas en "blanco + color del módulo".
-      // Mantiene base blanca pero acentúa con el color activo (primary) por pestaña.
-      "relative w-full overflow-auto rounded-xl border border-primary/25 bg-white shadow-sm",
-      "ring-1 ring-primary/10"
+      className,
+      "min-w-full caption-bottom border-collapse font-mono text-[0.82rem] text-slate-700"
     )}
-  >
-    <table
-      ref={ref}
-      className={cn(
-        className,
-        "w-full caption-bottom border-collapse font-mono text-[0.82rem] text-slate-700"
-      )}
-      {...props}
-    />
-  </div>
+    {...props}
+  />
 ))
 Table.displayName = "Table"
 

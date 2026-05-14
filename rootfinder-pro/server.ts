@@ -59,7 +59,7 @@ function applySecurityHeaders(app: express.Express) {
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https: http:; object-src 'none'; frame-ancestors 'none'; base-uri 'self';",
+      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.geogebra.org https://geogebra.org; style-src 'self' 'unsafe-inline' https://www.geogebra.org https://geogebra.org; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https: http:; frame-src 'self' https://www.geogebra.org https://geogebra.org; child-src 'self' https://www.geogebra.org https://geogebra.org; worker-src 'self' blob: https://www.geogebra.org https://geogebra.org; object-src 'none'; frame-ancestors 'none'; base-uri 'self';",
     );
 
     if (req.secure || process.env.NODE_ENV === "production") {

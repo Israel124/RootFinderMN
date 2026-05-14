@@ -30,7 +30,6 @@ const navigationItems: NavigationItem[] = [
 const resolutionItems: NavigationItem[] = [
   { id: 'methods', label: 'Entrada', icon: Calculator },
   { id: 'results', label: 'Resultados', icon: Sigma },
-  { id: 'graph', label: 'Gráfica', icon: FunctionSquare },
   { id: 'history', label: 'Historial', icon: History },
 ];
 

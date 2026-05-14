@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { detectZeroCrossings, normalizeRange } from '../src/lib/graphUtils';
+import { detectZeroCrossings, estimateFunctionViewport, normalizeRange } from '../src/lib/graphUtils';
 
 test('detectZeroCrossings interpola y elimina duplicados cercanos', () => {
   const crossings = detectZeroCrossings([
@@ -20,4 +20,27 @@ test('normalizeRange recupera un rango valido cuando la entrada es invalida', ()
     normalizeRange({ xmin: 4, xmax: 4, ymin: Number.NaN, ymax: 8 }, fallback),
     fallback
   );
+});
+
+test('estimateFunctionViewport ajusta el eje y para funciones que no caben en [-10,10]', () => {
+  const viewport = estimateFunctionViewport('x^2 - 100', {
+    fallback: { xmin: -10, xmax: 10, ymin: -10, ymax: 10 },
+  });
+
+  assert.equal(viewport.xmin, -10);
+  assert.equal(viewport.xmax, 10);
+  assert.ok(viewport.ymax > 10);
+  assert.ok(viewport.ymin <= -100);
+});
+
+test('estimateFunctionViewport expande el eje x cuando la raíz queda fuera del rango base', () => {
+  const viewport = estimateFunctionViewport('x - 25', {
+    root: 25,
+    fallback: { xmin: -10, xmax: 10, ymin: -10, ymax: 10 },
+  });
+
+  assert.ok(viewport.xmax >= 25);
+  assert.ok(viewport.xmin < viewport.xmax);
+  assert.ok(viewport.ymin < 0);
+  assert.ok(viewport.ymax > 0);
 });

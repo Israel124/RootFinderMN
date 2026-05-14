@@ -100,7 +100,6 @@ export function MethodsSection({
   }, [f, parsedA, parsedB]);
   const fixedPointProbe = !Number.isNaN(parsedG1) ? parsedG1 : parsedX0;
   const hasValidFixedPointBase = method === 'fixed-point' && f.trim() && MathEvaluator.isValid(f) && !Number.isNaN(fixedPointProbe);
-
   const automaticPreview = useMemo(
     () => {
       if (!hasValidFixedPointBase) return { selected: null, candidates: [] as FixedPointCandidate[] };

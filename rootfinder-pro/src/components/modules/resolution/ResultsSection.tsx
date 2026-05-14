@@ -1,19 +1,19 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { ConvergenceChart } from '@/components/shared/ConvergenceChart';
+import { MathGraph } from '@/components/shared/MathGraph';
 import { IterationTable } from '@/components/shared/IterationTable';
 import { MethodBadge } from '@/components/shared/MethodBadge';
 import type { CalculationResult } from '@/types';
 
 interface ResultsSectionProps {
   result: CalculationResult | null;
-  onViewGraph: () => void;
   onBackToMethods: () => void;
 }
 
 /**
  * Resume el resultado principal y presenta iteraciones con componentes compartidos.
  */
-export function ResultsSection({ result, onViewGraph, onBackToMethods }: ResultsSectionProps) {
+export function ResultsSection({ result, onBackToMethods }: ResultsSectionProps) {
   if (!result) {
     return (
       <div className="rounded-3xl border border-[var(--border)] bg-[var(--bg-surface)] p-8 text-sm text-[var(--text-muted)]">
@@ -44,13 +44,6 @@ export function ResultsSection({ result, onViewGraph, onBackToMethods }: Results
             <div className="mt-6 flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={onViewGraph}
-                className="rounded-full bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--bg-base)] transition-colors hover:bg-[var(--primary-dim)]"
-              >
-                Ver gráfica
-              </button>
-              <button
-                type="button"
                 onClick={onBackToMethods}
                 className="rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)]"
               >
@@ -79,6 +72,12 @@ export function ResultsSection({ result, onViewGraph, onBackToMethods }: Results
           </div>
         </CardContent>
       </Card>
+
+      <MathGraph
+        title="Gráfica de validación"
+        expressions={[result.functionF]}
+        points={result.root !== null ? [{ x: result.root, y: 0, label: 'Raíz' }] : []}
+      />
 
       <ConvergenceChart iterations={result.iterations} />
       <IterationTable rows={result.iterations} title="Tabla de iteraciones" />

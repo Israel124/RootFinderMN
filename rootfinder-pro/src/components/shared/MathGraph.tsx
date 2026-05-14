@@ -3,6 +3,7 @@ import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GeoGebraGraph } from '@/components/GeoGebraGraph';
 import { cn } from '@/lib/utils';
+import { estimateFunctionViewport, normalizeRange } from '@/lib/graphUtils';
 
 interface MathGraphPoint {
   x: number;
@@ -41,6 +42,34 @@ export function MathGraph({
     () => expressions.map((expression) => expression.trim()).filter(Boolean),
     [expressions],
   );
+  const primaryExpression = normalizedExpressions[0] ?? '';
+  const highlightedRoot = points.find((point) => Number.isFinite(point.x) && Math.abs(point.y) < 1e-9)?.x ?? null;
+  const fallbackRange = useMemo(
+    () => ({
+      xmin: xMin ?? -10,
+      xmax: xMax ?? 10,
+      ymin: yMin ?? -10,
+      ymax: yMax ?? 10,
+    }),
+    [xMax, xMin, yMax, yMin],
+  );
+  const autoRange = useMemo(
+    () => estimateFunctionViewport(primaryExpression, { root: highlightedRoot, fallback: fallbackRange }),
+    [fallbackRange, highlightedRoot, primaryExpression],
+  );
+  const effectiveRange = useMemo(
+    () =>
+      normalizeRange(
+        {
+          xmin: xMin ?? autoRange.xmin,
+          xmax: xMax ?? autoRange.xmax,
+          ymin: yMin ?? autoRange.ymin,
+          ymax: yMax ?? autoRange.ymax,
+        },
+        autoRange,
+      ),
+    [autoRange, xMax, xMin, yMax, yMin],
+  );
 
   return (
     <section className={cn('rounded-3xl border border-[var(--border)] bg-[var(--bg-surface)] p-4', className)}>
@@ -48,7 +77,7 @@ export function MathGraph({
         <div>
           <p className="text-sm font-semibold text-[var(--text-primary)]">{title}</p>
           <p className="text-xs text-[var(--text-muted)]">
-            GeoGebra interactivo con fallback del proyecto
+            GeoGebra interactivo
           </p>
         </div>
         {failed ? (
@@ -72,10 +101,10 @@ export function MathGraph({
         <GeoGebraGraph
           expressions={normalizedExpressions}
           points={points}
-          xMin={xMin}
-          xMax={xMax}
-          yMin={yMin}
-          yMax={yMax}
+          xMin={effectiveRange.xmin}
+          xMax={effectiveRange.xmax}
+          yMin={effectiveRange.ymin}
+          yMax={effectiveRange.ymax}
           heightClassName="h-[25rem] lg:h-[32rem]"
           fallback={
             <div className="flex h-full min-h-[25rem] items-center justify-center rounded-2xl bg-[linear-gradient(180deg,rgba(15,21,18,0.96),rgba(8,12,10,0.98))]">

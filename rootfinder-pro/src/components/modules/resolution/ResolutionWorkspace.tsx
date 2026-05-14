@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
-import { GraphSection } from './GraphSection';
 import { HistorySection } from './HistorySection';
 import { MethodsSection } from './MethodsSection';
 import { ResultsSection } from './ResultsSection';
@@ -62,18 +61,7 @@ export function ResolutionWorkspace({ activeTab, history }: ResolutionWorkspaceP
     return (
       <ResultsSection
         result={currentResult}
-        onViewGraph={() => setActiveTab('graph')}
         onBackToMethods={() => setActiveTab('methods')}
-      />
-    );
-  }
-
-  if (activeTab === 'graph') {
-    return (
-      <GraphSection
-        f={f}
-        root={currentResult?.root ?? null}
-        onBackToResults={currentResult ? () => setActiveTab('results') : undefined}
       />
     );
   }
