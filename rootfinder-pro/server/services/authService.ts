@@ -91,6 +91,22 @@ export class AuthService {
     this.context = context;
   }
 
+  private async deliverVerificationCode(email: string, verificationCode: string) {
+    if (this.context.storage.mode === "json") {
+      return {
+        success: false as const,
+        showCodeDirectly: true as const,
+        error: "Modo local detectado: usa el código mostrado en pantalla.",
+      };
+    }
+
+    const emailResult = await sendAccountVerificationEmail(email, verificationCode);
+    return {
+      ...emailResult,
+      showCodeDirectly: false as const,
+    };
+  }
+
   /**
    * Registra un usuario nuevo y emite verificación por correo.
    */
@@ -122,16 +138,20 @@ export class AuthService {
       verificationExpiresAt,
     });
 
-    const emailResult = await sendAccountVerificationEmail(email, verificationCode);
+    const emailResult = await this.deliverVerificationCode(email, verificationCode);
     if (!emailResult.success) {
-      logger.warn("No se pudo enviar correo de verificación", {
-        email,
-        error: emailResult.error,
-      });
+      if (!emailResult.showCodeDirectly) {
+        logger.warn("No se pudo enviar correo de verificación", {
+          email,
+          error: emailResult.error,
+        });
+      }
 
       clearRefreshCookie(this.context.config, response);
       return {
-        message: "Usuario registrado. No se pudo enviar el email de verificación.",
+        message: emailResult.showCodeDirectly
+          ? "Usuario registrado. Como estás en modo local, usa el código mostrado en pantalla."
+          : "Usuario registrado. No se pudo enviar el email de verificación.",
         requiresVerification: true,
         email,
         emailSent: false,
@@ -182,7 +202,7 @@ export class AuthService {
       const verificationCode = generateVerificationCode();
       const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
       await this.context.storage.updateUserVerificationCode(email, verificationCode, expiresAt);
-      const emailResult = await sendAccountVerificationEmail(email, verificationCode);
+      const emailResult = await this.deliverVerificationCode(email, verificationCode);
 
       clearRefreshCookie(this.context.config, response);
       return {
@@ -193,7 +213,9 @@ export class AuthService {
         emailError: emailResult.success ? null : emailResult.error,
         error: emailResult.success
           ? "Cuenta no verificada. Te enviamos un nuevo código de verificación."
-          : "Cuenta no verificada. No se pudo enviar el correo, usa el código mostrado para continuar.",
+          : emailResult.showCodeDirectly
+            ? "Cuenta no verificada. Estás en modo local, usa el código mostrado para continuar."
+            : "Cuenta no verificada. No se pudo enviar el correo, usa el código mostrado para continuar.",
       };
     }
 

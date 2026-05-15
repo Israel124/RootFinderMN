@@ -385,8 +385,8 @@ export function TaylorSection() {
             </div>
           )}
           <GeoGebraGraph
-            expressions={activeResult ? [lastCalculatedFx, activeResult.polynomial] : []}
-            points={activeResult ? [{ x: activeResult.evaluateAt, y: activeResult.approximation, label: 'P_n(x)' }] : []}
+            expressions={activeResult ? [lastCalculatedFx] : []}
+            points={[]}
             xMin={zoomedGraphConfig.xmin}
             xMax={zoomedGraphConfig.xmax}
             heightClassName="h-[28rem] lg:h-[34rem]"
@@ -419,9 +419,9 @@ export function TaylorSection() {
               <CardDescription>Derivadas, coeficientes y contribución de cada término del polinomio.</CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[520px] rounded-xl border border-primary/10 bg-background/30">
+              <ScrollArea className="h-[520px] rounded-xl border border-primary/10 bg-white">
                 <Table>
-                  <TableHeader className="sticky top-0 bg-white/95 z-10 border-b border-primary/20 backdrop-blur-sm">
+                  <TableHeader className="sticky top-0 z-10 border-b border-primary/20">
                     <TableRow>
                       <TableHead className="uppercase text-[10px] font-bold tracking-widest text-primary/70">k</TableHead>
                       <TableHead className="uppercase text-[10px] font-bold tracking-widest text-primary/70">f^(k)(x)</TableHead>

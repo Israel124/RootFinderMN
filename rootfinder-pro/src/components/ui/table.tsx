@@ -9,7 +9,7 @@ const Table = React.forwardRef<
     ref={ref}
     className={cn(
       className,
-      "min-w-full caption-bottom border-collapse font-mono text-[0.82rem] text-slate-700"
+      "min-w-full caption-bottom border-collapse bg-white font-mono text-[0.82rem] text-slate-700"
     )}
     {...props}
   />
@@ -78,7 +78,7 @@ const TableHead = React.forwardRef<
     ref={ref}
     className={cn(
       className,
-      "h-10 border-b border-primary/25 bg-primary/10 px-3 py-2 text-right align-middle font-sans text-[0.73rem] font-semibold tracking-[0.3px] text-slate-600 first:text-center [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]"
+      "h-10 border-b border-emerald-700 bg-emerald-600 px-3 py-2 text-center align-middle font-sans text-[0.73rem] font-semibold tracking-[0.3px] text-white [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]"
     )}
     {...props}
   />
@@ -93,7 +93,7 @@ const TableCell = React.forwardRef<
     ref={ref}
     className={cn(
       className,
-      "border-b border-slate-100 px-3 py-2 text-right align-middle text-slate-700 first:text-center first:font-medium first:text-slate-500 [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]"
+      "border-b border-slate-200 bg-white px-3 py-2 text-center align-middle text-slate-700 [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]"
     )}
     {...props}
   />

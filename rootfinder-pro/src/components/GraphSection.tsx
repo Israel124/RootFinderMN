@@ -23,7 +23,6 @@ export function GraphSection({ f, root, onBackToResults }: GraphSectionProps) {
   );
   const [range, setRange] = useState<PlotRange>(defaultRange);
   const [crossings, setCrossings] = useState<number[]>([]);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   useEffect(() => {
     setRange(defaultRange);
@@ -127,16 +126,11 @@ export function GraphSection({ f, root, onBackToResults }: GraphSectionProps) {
                   size="icon" 
                   className="bg-primary hover:bg-primary/80 text-primary-foreground"
                   aria-label="Abrir gráfica en vista ampliada"
-                  onClick={() => setIsDialogOpen(true)}
                 >
                   <Maximize2 className="w-4 h-4" />
                 </Button>
               </DialogTrigger>
-              <DialogContent 
-                isOpen={isDialogOpen} 
-                onClose={() => setIsDialogOpen(false)}
-                className="max-w-[95vw] w-full h-[90vh] p-0 overflow-hidden bg-background border-primary/20"
-              >
+              <DialogContent className="max-w-[95vw] w-full h-[90vh] p-0 overflow-hidden bg-background border-primary/20">
                 <DialogHeader className="p-4 border-b border-primary/10">
                   <DialogTitle className="flex items-center justify-between">
                     <span>Vista Ampliada: {f}</span>
